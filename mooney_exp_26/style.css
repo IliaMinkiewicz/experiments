@@ -1,0 +1,68 @@
+/* Please define your custom styles here */
+body {
+  background-color: gray;
+}
+.red {
+  border: 30px solid red;
+}
+.green {
+  border: 30px solid green;
+}
+.blue {
+  border: 30px solid blue;
+}
+.yellow {
+  border: 30px solid yellow;
+}
+.orange {
+  border: 30px solid orange;
+}
+.purple {
+  border: 30px solid purple;
+}
+.cyan {
+  border: 30px solid cyan;
+}
+.pink {
+  border: 30px solid pink;
+}
+.select {
+  border-width: 50px;
+  opacity: 1;
+}
+
+/* Главная обертка на весь экран (FIXED position исправляет сдвиги) */
+.main-wrapper {
+  position: fixed; 
+  top: 0; 
+  left: 0; 
+  width: 100vw; 
+  height: 100vh;
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  justify-content: center;
+  background: #808080; 
+  overflow: auto;
+  z-index: 1000;
+}
+
+/* Сетка */
+.grid-box {
+  display: grid; 
+  grid-template-columns: repeat(4, auto);
+  grid-template-rows: repeat(2, auto);
+  gap: 20px; 
+  padding: 20px;
+}
+
+/* Картинки */
+.mooney-option {
+  object-fit: contain; 
+  border-style: solid; 
+  border-width: 15px;
+  box-sizing: border-box; 
+  cursor: pointer; 
+  transition: transform 0.1s;
+}
+.mooney-option:hover { transform: scale(1.05); }
