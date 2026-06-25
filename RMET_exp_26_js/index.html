@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RMET Experiment</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="experiment-container">
+    
+    <!-- 1. SETUP SCREEN -->
+    <div id="screen-setup" class="screen active">
+      <h1 class="form-title">Параметры эксперимента (RMET)</h1>
+      <form id="setup-form" class="setup-form" onsubmit="event.preventDefault(); startExperiment();">
+        <div class="form-group">
+          <label for="participant-id" class="input-label">ID участника:</label>
+          <input type="text" id="participant-id" class="form-input" placeholder="Введите уникальный ID" required autofocus autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="session-num" class="input-label">Номер сессии:</label>
+          <select id="session-num" class="form-input" required>
+            <option value="1" selected>Сессия 1</option>
+            <option value="2">Сессия 2</option>
+            <option value="3">Сессия 3</option>
+            <option value="4">Сессия 4</option>
+            <option value="5">Сессия 5</option>
+            <option value="6">Сессия 6</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Продолжить</button>
+      </form>
+    </div>
+
+    <!-- 2. INSTRUCTION SCREEN -->
+    <div id="screen-instruction" class="screen">
+      <h1 class="form-title">Инструкция</h1>
+      <div class="instruction-card">
+        <div class="instruction-text">
+          <p>Представьте, что человек, чьи глаза вы видите на фотографии — это ваш хороший знакомый или знакомая, который стоит прямо перед вами.</p>
+          <p>Прислушайтесь к своим внутренним ощущениям в этот момент. Что вы чувствуете, когда видите такой взгляд, направленный на вас?</p>
+          <p>Вам будет предложено ответить на два вопроса на каждой пробе:</p>
+          <ul>
+            <li>Какие эмоциональные переживания испытывает человек напротив?</li>
+            <li>Какие ответные эмоциональные переживания возникают у вас?</li>
+          </ul>
+          <p id="practice-note" style="color: #f59e0b; font-weight: 500; display: none;">Внимание: Поскольку это 1-я сессия, сначала вы пройдете 3 тренировочные пробы.</p>
+        </div>
+      </div>
+      <button onclick="goToTrial()" class="btn btn-primary">Начать</button>
+    </div>
+
+    <!-- 3. EXPERIMENT (TRIAL) SCREEN -->
+    <div id="screen-trial" class="screen">
+      <div class="header-bar">
+        <span id="trial-counter">Проба 1 из 24</span>
+        <span id="practice-indicator" class="practice-badge" style="display: none;">Тренировка</span>
+      </div>
+      
+      <div class="progress-container">
+        <div id="trial-progress" class="progress-bar"></div>
+      </div>
+
+      <div class="stimulus-box">
+        <img id="stimulus-img" class="stimulus-image" src="" alt="Eye Stimulus">
+      </div>
+
+      <div class="inputs-box">
+        <div class="input-group">
+          <label for="textbox-long" class="input-label">Какие эмоциональные переживания испытывает человек напротив?</label>
+          <textarea id="textbox-long" class="textbox" placeholder="Введите детальное описание эмоциональных переживаний человека напротив..."></textarea>
+        </div>
+        <div class="input-group">
+          <label for="textbox-short" class="input-label">Какие ответные эмоциональные переживания возникают у вас?</label>
+          <textarea id="textbox-short" class="textbox" placeholder="Введите ваши ответные эмоциональные переживания..."></textarea>
+        </div>
+      </div>
+
+      <div class="controls-bar">
+        <button id="btn-back" onclick="handleBack()" class="btn btn-secondary">Назад</button>
+        <button id="btn-help" onclick="toggleHelpModal(true)" class="btn btn-secondary">Инструкция</button>
+        <button id="btn-next" onclick="handleNext()" class="btn btn-primary">Далее</button>
+      </div>
+    </div>
+
+    <!-- 4. END SCREEN -->
+    <div id="screen-end" class="screen">
+      <h1 class="form-title" style="color: var(--success-color);">Эксперимент завершен</h1>
+      <div class="instruction-card" style="text-align: center;">
+        <p style="font-size: 1.15rem; margin-bottom: 20px;">Спасибо за участие! Ваши данные были успешно записаны.</p>
+        <p id="upload-status" class="status-msg info">Инициализация сохранения данных...</p>
+      </div>
+
+      <div id="preview-container" style="display: none; width: 100%; margin-bottom: 20px;">
+        <p class="input-label">Предпросмотр сохраненных ответов:</p>
+        <div class="results-preview">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); text-align: left;">
+                <th style="padding-bottom: 8px;">Проба</th>
+                <th style="padding-bottom: 8px;">Стимул</th>
+                <th style="padding-bottom: 8px;">Его эмоции</th>
+                <th style="padding-bottom: 8px;">Ваши эмоции</th>
+              </tr>
+            </thead>
+            <tbody id="preview-body">
+              <!-- Filled dynamically in script.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 15px;">
+        <button onclick="downloadCSV()" class="btn btn-primary">Скачать CSV файл</button>
+        <button onclick="resetToStart()" class="btn btn-secondary">На главную</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- HELP MODAL OVERLAY -->
+  <div id="help-overlay" class="help-overlay">
+    <div class="help-modal">
+      <h2 style="margin-bottom: 20px; font-weight: 700;">Напоминание инструкции</h2>
+      <div class="help-modal-text">
+        Представьте, что человек, чьи глаза вы видите на фотографии — это ваш хороший знакомый или знакомая, который стоит прямо перед вами.
+        
+        Прислушайтесь к своим внутренним ощущениям в этот момент. Что вы чувствуете, когда видите такой взгляд, направленный на вас?
+        
+        Ответьте на вопросы:
+        1. Какие эмоциональные переживания испытывает человек напротив?
+        2. Какие ответные эмоциональные переживания возникают у вас?
+      </div>
+      <button onclick="toggleHelpModal(false)" class="btn btn-primary">Вернуться к оценке</button>
+    </div>
+  </div>
+
+  <!-- Experiment Script -->
+  <script src="script.js"></script>
+</body>
+</html>
