@@ -1,6 +1,6 @@
 // Configurable Endpoint for Data Upload
 // Paste your Google Apps Script Web App URL here to enable automatic saving to GitHub/Google Sheets.
-const UPLOAD_URL = ""; 
+const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbzFXaWaMh0_B0VL18eSTw7J7KB7xJr6Kr90kVinc7XnCj2GOMRMOuoFV3BAlbzS6lZq/exec"; 
 
 // State Variables
 let participantId = "";
