@@ -34,16 +34,27 @@ const REPO_OWNER = "IliaMinkiewicz"; // Your GitHub username
 const REPO_NAME = "experiments";     // Your repository name
 const BRANCH = "main";               // Target branch
 const FOLDER_PATH = "RMET_exp_26_js/data"; // Folder inside the repo where files will be saved
+const SHARED_SECRET = "RMET_SECURE_2026"; // Must match SHARED_SECRET in script.js
 // ---------------------
 
 function doGet(e) {
   try {
     const action = e.parameter.action;
     const participantId = e.parameter.participantId;
+    const secret = e.parameter.secret;
+    
+    if (secret !== SHARED_SECRET) {
+      return errorResponse("Unauthorized: Invalid secret");
+    }
     
     if (action === "check_sessions") {
       if (!participantId) {
         return errorResponse("Missing participantId");
+      }
+      
+      const safeId = String(participantId).replace(/[^A-Za-z0-9_-]/g, "");
+      if (!safeId || safeId !== participantId) {
+        return errorResponse("Invalid participantId format");
       }
       
       const listUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FOLDER_PATH}?ref=${BRANCH}`;
@@ -68,8 +79,8 @@ function doGet(e) {
       const files = JSON.parse(response.getContentText());
       const completedSessions = [];
       
-      const escapedId = participantId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`^summary_sub-${escapedId}_ses-([1-6])\\.csv$`, 'i');
+      const escapedId = safeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^summary_sub-${escapedId}_ses-([1-6])(_\\d{8}-\\d{6})?\\.csv$`, 'i');
       
       if (Array.isArray(files)) {
         files.forEach(file => {
@@ -95,13 +106,35 @@ function doPost(e) {
     const participantId = requestData.participantId;
     const sessionNum = requestData.sessionNum;
     const csvData = requestData.csvData;
+    const secret = requestData.secret;
+    
+    if (secret !== SHARED_SECRET) {
+      return errorResponse("Unauthorized: Invalid secret");
+    }
     
     if (!participantId || !csvData) {
       return errorResponse("Missing required fields: participantId or csvData");
     }
     
+    const safeId = String(participantId).replace(/[^A-Za-z0-9_-]/g, "");
+    if (!safeId || safeId !== participantId) {
+      return errorResponse("Invalid participantId format");
+    }
+    
+    // Get timestamp suffix for uniqueness
+    let timestampSuffix = "";
+    if (requestData.timestamp) {
+      try {
+        const d = new Date(requestData.timestamp);
+        const pad = n => String(n).padStart(2, '0');
+        timestampSuffix = `_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+      } catch (err) {
+        timestampSuffix = "";
+      }
+    }
+    
     // Construct target filename and path
-    const fileName = `summary_sub-${participantId}_ses-${sessionNum}.csv`;
+    const fileName = `summary_sub-${safeId}_ses-${sessionNum}${timestampSuffix}.csv`;
     const filePath = `${FOLDER_PATH}/${fileName}`;
     
     // GitHub API URL to create or update files

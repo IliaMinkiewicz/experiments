@@ -1,6 +1,7 @@
 // Configurable Endpoint for Data Upload
 // Paste your Google Apps Script Web App URL here to enable automatic saving to GitHub/Google Sheets.
 const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbwviQ7b7q3aNKkAOv4eB05MndR2SkovDejoO-9qDImGDIoynvabVURZVb8vzJooxm-d/exec";
+const SHARED_SECRET = "RMET_SECURE_2026"; // Must match SHARED_SECRET in google_apps_script.js
 
 // State Variables
 let participantId = "";
@@ -10,6 +11,8 @@ let trials = [];
 let trialPointer = 0;
 let gender = "";
 let age = "";
+let trialOnset = 0;
+let sessionTimestampISO = "";
 
 // Original Stimuli List (144 items)
 const allStimuli = [];
@@ -52,8 +55,12 @@ function updateSetupFormVisibility() {
   const demoGroup = document.getElementById("demographics-group");
   const genderSelect = document.getElementById("participant-gender");
   const ageInput = document.getElementById("participant-age");
+  const idInput = document.getElementById("participant-id");
 
-  if (sessionSelect.value === "1") {
+  const pId = idInput.value.trim();
+  const hasLocalDemo = pId && localStorage.getItem('gender_' + pId) && localStorage.getItem('age_' + pId);
+
+  if (sessionSelect.value === "1" || !hasLocalDemo) {
     demoGroup.style.display = "block";
     genderSelect.required = true;
     ageInput.required = true;
@@ -107,7 +114,7 @@ function checkCompletedSessions() {
   setupStatus.style.display = "block";
   startBtn.disabled = true;
 
-  const url = `${UPLOAD_URL}?action=check_sessions&participantId=${encodeURIComponent(pId)}`;
+  const url = `${UPLOAD_URL}?action=check_sessions&participantId=${encodeURIComponent(pId)}&secret=${encodeURIComponent(SHARED_SECRET)}`;
   fetch(url, {
     method: 'GET'
   })
@@ -197,8 +204,16 @@ function startExperiment() {
     return;
   }
 
-  // Handle Demographics (only required in Session 1)
-  if (sessionNum === 1) {
+  // Security: Check character constraints
+  const safeId = participantId.replace(/[^A-Za-z0-9_-]/g, "");
+  if (!safeId || safeId !== participantId) {
+    alert("ID участника может содержать только латинские буквы, цифры, дефис и знак подчеркивания.");
+    return;
+  }
+
+  // Demographics Recovery (check if they exist even if session > 1)
+  const hasLocalDemo = localStorage.getItem('gender_' + participantId) && localStorage.getItem('age_' + participantId);
+  if (sessionNum === 1 || !hasLocalDemo) {
     gender = document.getElementById("participant-gender").value;
     age = document.getElementById("participant-age").value.trim();
     if (!gender || !age) {
@@ -209,9 +224,28 @@ function startExperiment() {
     localStorage.setItem('gender_' + participantId, gender);
     localStorage.setItem('age_' + participantId, age);
   } else {
-    // Try to restore from localStorage if available
     gender = localStorage.getItem('gender_' + participantId) || "";
     age = localStorage.getItem('age_' + participantId) || "";
+  }
+
+  // Check mid-session progress recovery
+  const progressKey = `progress_${participantId}_ses-${sessionNum}`;
+  const savedProgress = localStorage.getItem(progressKey);
+  if (savedProgress) {
+    if (confirm("Обнаружен сохраненный прогресс для этой сессии. Хотите продолжить с места прерывания?")) {
+      try {
+        const progressData = JSON.parse(savedProgress);
+        trials = progressData.trials;
+        trialPointer = progressData.trialPointer;
+        goToTrial();
+        return;
+      } catch (e) {
+        console.error("Error loading progress", e);
+        localStorage.removeItem(progressKey);
+      }
+    } else {
+      localStorage.removeItem(progressKey);
+    }
   }
 
   // 1. Shuffling based on seed (deterministic for participantId)
@@ -230,8 +264,10 @@ function startExperiment() {
         stim_file: stim,
         global_idx: globalIdx,
         is_practice: true,
-        response_detailed: "NNNN", // Prefilled adjective
-        response_short: "NNNN"     // Prefilled response reflections
+        response_adjective: "NNNN", // Prefilled adjective
+        response_feelings: "NNNN",  // Prefilled response reflections
+        rt_ms: null,
+        onset_iso: null
       });
     });
 
@@ -251,8 +287,10 @@ function startExperiment() {
       stim_file: stim,
       global_idx: globalIdx,
       is_practice: false,
-      response_detailed: "",
-      response_short: ""
+      response_adjective: "",
+      response_feelings: "",
+      rt_ms: null,
+      onset_iso: null
     });
   });
 
@@ -302,11 +340,11 @@ function renderTrial() {
   document.getElementById("stimulus-img").src = `stimuli/${trial.stim_file}`;
 
   // Set text box values
-  const textLong = document.getElementById("textbox-long");
-  const textShort = document.getElementById("textbox-short");
+  const textAdjective = document.getElementById("textbox-adjective");
+  const textFeelings = document.getElementById("textbox-feelings");
 
-  textLong.value = trial.response_detailed;
-  textShort.value = trial.response_short;
+  textAdjective.value = trial.response_adjective;
+  textFeelings.value = trial.response_feelings;
 
   // Configure Back button visibility
   const btnBack = document.getElementById("btn-back");
@@ -315,18 +353,49 @@ function renderTrial() {
   } else {
     btnBack.classList.add("hidden");
   }
+
+  // Record trial start time and onset ISO
+  trial.onset_iso = new Date().toISOString();
+  trialOnset = performance.now();
+
+  // Prefetch next image
+  if (trialPointer + 1 < trials.length) {
+    const nextImg = new Image();
+    nextImg.src = `stimuli/${trials[trialPointer + 1].stim_file}`;
+  }
 }
 
 // Next Trial Handler
 function handleNext() {
-  const textLong = document.getElementById("textbox-long");
-  const textShort = document.getElementById("textbox-short");
+  const textAdjective = document.getElementById("textbox-adjective");
+  const textFeelings = document.getElementById("textbox-feelings");
+
+  const adjectiveVal = textAdjective.value.trim();
+  const feelingsVal = textFeelings.value.trim();
+
+  // Soft validation: alert if multiple words entered in adjective field
+  const words = adjectiveVal.split(/\s+/).filter(Boolean);
+  if (words.length > 1 && !trials[trialPointer].is_practice) {
+    if (!confirm("В первом поле (описание взгляда) рекомендуется ввести только одно прилагательное. Вы уверены, что хотите продолжить?")) {
+      return;
+    }
+  }
 
   // Save current responses
-  trials[trialPointer].response_detailed = textLong.value.trim();
-  trials[trialPointer].response_short = textShort.value.trim();
+  trials[trialPointer].response_adjective = adjectiveVal;
+  trials[trialPointer].response_feelings = feelingsVal;
+  
+  // Calculate and store reaction time (RT) in milliseconds
+  const rtMs = Math.round(performance.now() - trialOnset);
+  trials[trialPointer].rt_ms = rtMs;
 
   trialPointer++;
+
+  // Save progress locally
+  localStorage.setItem(`progress_${participantId}_ses-${sessionNum}`, JSON.stringify({
+    trialPointer: trialPointer,
+    trials: trials
+  }));
 
   if (trialPointer < trials.length) {
     renderTrial();
@@ -338,14 +407,21 @@ function handleNext() {
 // Back Trial Handler
 function handleBack() {
   if (trialPointer > 0) {
-    const textLong = document.getElementById("textbox-long");
-    const textShort = document.getElementById("textbox-short");
+    const textAdjective = document.getElementById("textbox-adjective");
+    const textFeelings = document.getElementById("textbox-feelings");
 
     // Save current values before going back
-    trials[trialPointer].response_detailed = textLong.value.trim();
-    trials[trialPointer].response_short = textShort.value.trim();
+    trials[trialPointer].response_adjective = textAdjective.value.trim();
+    trials[trialPointer].response_feelings = textFeelings.value.trim();
 
     trialPointer--;
+
+    // Save progress locally
+    localStorage.setItem(`progress_${participantId}_ses-${sessionNum}`, JSON.stringify({
+      trialPointer: trialPointer,
+      trials: trials
+    }));
+
     renderTrial();
   }
 }
@@ -362,6 +438,9 @@ function toggleHelpModal(show) {
 
 // End Experiment Phase
 function endExperiment() {
+  // Capture final session completion timestamp
+  sessionTimestampISO = new Date().toISOString();
+
   showScreen("screen-end");
 
   // Fill Results Preview table
@@ -384,18 +463,18 @@ function endExperiment() {
     tdStim.style.padding = "6px 8px";
     tdStim.textContent = trial.stim_file;
 
-    const tdLong = document.createElement("td");
-    tdLong.style.padding = "6px 8px";
-    tdLong.textContent = truncateString(trial.response_detailed, 20);
+    const tdAdj = document.createElement("td");
+    tdAdj.style.padding = "6px 8px";
+    tdAdj.textContent = truncateString(trial.response_adjective, 20);
 
-    const tdShort = document.createElement("td");
-    tdShort.style.padding = "6px 8px";
-    tdShort.textContent = truncateString(trial.response_short, 20);
+    const tdFeel = document.createElement("td");
+    tdFeel.style.padding = "6px 8px";
+    tdFeel.textContent = truncateString(trial.response_feelings, 20);
 
     tr.appendChild(tdSeq);
     tr.appendChild(tdStim);
-    tr.appendChild(tdLong);
-    tr.appendChild(tdShort);
+    tr.appendChild(tdAdj);
+    tr.appendChild(tdFeel);
     tbody.appendChild(tr);
   });
 
@@ -411,9 +490,21 @@ function truncateString(str, num) {
   return str.slice(0, num) + "...";
 }
 
+// Helper for formatting timestamp suffixes
+function getTimestampSuffix(isoStr) {
+  if (!isoStr) return "";
+  try {
+    const d = new Date(isoStr);
+    const pad = n => String(n).padStart(2, '0');
+    return `_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  } catch (err) {
+    return "";
+  }
+}
+
 // Generate CSV string
 function generateCSV() {
-  let csvContent = "participant_id,session,trial_sequence,is_practice,global_stim_idx,stim_file,response_detailed,response_short,gender,age\n";
+  let csvContent = "participant_id,session,trial_sequence,is_practice,global_stim_idx,stim_file,response_adjective,response_feelings,rt_ms,onset_iso,gender,age\n";
 
   trials.forEach((trial, index) => {
     const seqNum = trial.is_practice ? (index + 1) : (sessionNum === 1 ? index - 2 : index + 1);
@@ -424,7 +515,10 @@ function generateCSV() {
       return `"${escaped}"`;
     };
 
-    csvContent += `${escapeCSV(participantId)},${sessionNum},${seqNum},${trial.is_practice ? 1 : 0},${trial.global_idx},${trial.stim_file},${escapeCSV(trial.response_detailed)},${escapeCSV(trial.response_short)},${escapeCSV(gender)},${escapeCSV(age)}\n`;
+    const rtVal = (trial.rt_ms !== null && trial.rt_ms !== undefined) ? trial.rt_ms : "";
+    const onsetVal = trial.onset_iso ? trial.onset_iso : "";
+
+    csvContent += `${escapeCSV(participantId)},${sessionNum},${seqNum},${trial.is_practice ? 1 : 0},${trial.global_idx},${trial.stim_file},${escapeCSV(trial.response_adjective)},${escapeCSV(trial.response_feelings)},${rtVal},${onsetVal},${escapeCSV(gender)},${escapeCSV(age)}\n`;
   });
 
   return csvContent;
@@ -442,11 +536,12 @@ function downloadCSV() {
     localStorage.setItem(localKey, JSON.stringify(localSessions));
   }
 
+  const suffix = getTimestampSuffix(sessionTimestampISO);
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
-  link.setAttribute("download", `summary_sub-${participantId}_ses-${sessionNum}.csv`);
+  link.setAttribute("download", `summary_sub-${participantId}_ses-${sessionNum}${suffix}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -470,35 +565,51 @@ function saveData() {
       participantId: participantId,
       sessionNum: sessionNum,
       csvData: csvContent,
-      timestamp: new Date().toISOString()
+      timestamp: sessionTimestampISO || new Date().toISOString(),
+      secret: SHARED_SECRET
     };
 
     fetch(UPLOAD_URL, {
       method: 'POST',
-      mode: 'no-cors',
       headers: {
         'Content-Type': 'text/plain'
       },
       body: JSON.stringify(payload)
     })
-      .then(() => {
-        // Double-check session is saved in localStorage completed list
-        const localKey = 'completed_sessions_' + participantId;
-        const localSessions = JSON.parse(localStorage.getItem(localKey) || "[]");
-        if (!localSessions.includes(sessionNum)) {
-          localSessions.push(sessionNum);
-          localStorage.setItem(localKey, JSON.stringify(localSessions));
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Ошибка сети: статус ${response.status}`);
         }
-        
-        uploadStatus.textContent = "Данные успешно отправлены на GitHub!";
-        uploadStatus.className = "status-msg success";
+        return response.json();
+      })
+      .then(data => {
+        if (data && data.status === "success") {
+          // Clear progress from local storage on successful save
+          localStorage.removeItem(`progress_${participantId}_ses-${sessionNum}`);
+
+          // Double-check session is saved in localStorage completed list
+          const localKey = 'completed_sessions_' + participantId;
+          const localSessions = JSON.parse(localStorage.getItem(localKey) || "[]");
+          if (!localSessions.includes(sessionNum)) {
+            localSessions.push(sessionNum);
+            localStorage.setItem(localKey, JSON.stringify(localSessions));
+          }
+          
+          uploadStatus.textContent = "Данные успешно отправлены на GitHub!";
+          uploadStatus.className = "status-msg success";
+        } else {
+          throw new Error((data && data.message) || "Неизвестная ошибка сервера");
+        }
       })
       .catch(err => {
         console.error("Upload error:", err);
-        uploadStatus.textContent = "Ошибка при отправке: " + err.message + ". CSV файл скачан на устройство.";
+        uploadStatus.textContent = "Ошибка при сохранении в облако: " + err.message + ". CSV файл сохранен локально. Пожалуйста, отправьте его экспериментатору.";
         uploadStatus.className = "status-msg error";
       });
   } else {
+    // Clear progress on local download (completion fallback)
+    localStorage.removeItem(`progress_${participantId}_ses-${sessionNum}`);
+
     uploadStatus.textContent = "Автоматическое сохранение в облако не настроено. CSV файл сохранен на вашем компьютере.";
     uploadStatus.className = "status-msg info";
   }
@@ -521,12 +632,21 @@ window.addEventListener("DOMContentLoaded", () => {
   const sessionSelect = document.getElementById("session-num");
   const idInput = document.getElementById("participant-id");
 
-  // Show/Hide Gender and Age inputs based on Session select
+  // Show/Hide Gender and Age inputs based on Session select/ID input
   sessionSelect.addEventListener("change", updateSetupFormVisibility);
+  idInput.addEventListener("input", updateSetupFormVisibility);
   updateSetupFormVisibility();
 
   // Validate completed sessions on typing/blur
   idInput.addEventListener("input", debounce(checkCompletedSessions, 500));
   idInput.addEventListener("blur", checkCompletedSessions);
   checkCompletedSessions();
+
+  // Image load error listener
+  const stimImg = document.getElementById("stimulus-img");
+  if (stimImg) {
+    stimImg.addEventListener("error", () => {
+      alert("Ошибка загрузки изображения стимула. Пожалуйста, проверьте интернет-соединение или обновите страницу.");
+    });
+  }
 });

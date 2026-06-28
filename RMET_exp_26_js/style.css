@@ -164,12 +164,12 @@ body {
   color: var(--text-placeholder);
 }
 
-#textbox-long {
-  height: 65px;
+#textbox-adjective {
+  height: 50px;
 }
 
-#textbox-short {
-  height: 110px;
+#textbox-feelings {
+  height: 120px;
 }
 
 /* Navigation buttons bar */
