@@ -33,7 +33,7 @@ const GITHUB_TOKEN = "YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"; // Generate at github.
 const REPO_OWNER = "IliaMinkiewicz"; // Your GitHub username
 const REPO_NAME = "experiments";     // Your repository name
 const BRANCH = "main";               // Target branch
-const FOLDER_PATH = "RMET_experiment/data"; // Folder inside the repo where files will be saved
+const FOLDER_PATH = "RMET_exp_26_js/data"; // Folder inside the repo where files will be saved
 // ---------------------
 
 function doPost(e) {
