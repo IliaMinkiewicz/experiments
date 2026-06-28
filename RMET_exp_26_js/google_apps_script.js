@@ -40,6 +40,53 @@ function doPost(e) {
   try {
     const requestData = JSON.parse(e.postData.contents);
     const participantId = requestData.participantId;
+    
+    // Action 1: Check completed sessions on GitHub
+    if (requestData.action === "check_sessions") {
+      if (!participantId) {
+        return errorResponse("Missing participantId");
+      }
+      
+      const listUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FOLDER_PATH}?ref=${BRANCH}`;
+      const response = UrlFetchApp.fetch(listUrl, {
+        method: "get",
+        headers: {
+          "Authorization": `token ${GITHUB_TOKEN}`,
+          "Accept": "application/vnd.github.v3+json"
+        },
+        muteHttpExceptions: true
+      });
+      
+      const responseCode = response.getResponseCode();
+      if (responseCode === 404) {
+        // Folder or repo doesn't exist yet, so no sessions completed
+        return successSessions([]);
+      }
+      
+      if (responseCode !== 200) {
+        return errorResponse(`GitHub API error (${responseCode}): ${response.getContentText()}`);
+      }
+      
+      const files = JSON.parse(response.getContentText());
+      const completedSessions = [];
+      
+      // Escape special characters in participantId for regex safety
+      const escapedId = participantId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^summary_sub-${escapedId}_ses-([1-6])\\.csv$`, 'i');
+      
+      if (Array.isArray(files)) {
+        files.forEach(file => {
+          const match = file.name.match(regex);
+          if (match) {
+            completedSessions.push(parseInt(match[1]));
+          }
+        });
+      }
+      
+      return successSessions(completedSessions);
+    }
+    
+    // Action 2: Save CSV data (default)
     const sessionNum = requestData.sessionNum;
     const csvData = requestData.csvData;
     
@@ -122,6 +169,12 @@ function doOptions(e) {
 // Helpers for JSON responses
 function successResponse(message) {
   const result = JSON.stringify({ status: "success", message: message });
+  return ContentService.createTextOutput(result)
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function successSessions(sessions) {
+  const result = JSON.stringify({ status: "success", completedSessions: sessions });
   return ContentService.createTextOutput(result)
     .setMimeType(ContentService.MimeType.JSON);
 }
