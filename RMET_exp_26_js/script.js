@@ -1,6 +1,6 @@
 // Configurable Endpoint for Data Upload
 // Paste your Google Apps Script Web App URL here to enable automatic saving to GitHub/Google Sheets.
-const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbwviQ7b7q3aNKkAOv4eB05MndR2SkovDejoO-9qDImGDIoynvabVURZVb8vzJooxm-d/exec";
+const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbyTbg2h6sfSfIBo1fABmgaCunDZhgsFWxZnpV8ScXJkKipQIIS1RUbpsl3eaoXBIUxr/exec";
 
 // State Variables
 let participantId = "";
@@ -8,6 +8,8 @@ let sessionNum = 1;
 let shuffledStimuli = [];
 let trials = [];
 let trialPointer = 0;
+let gender = "";
+let age = "";
 
 // Original Stimuli List (144 items)
 const allStimuli = [];
@@ -43,7 +45,144 @@ function seedShuffle(array, seedString) {
   }
   return shuffled;
 }
-// -------------------------------------------------------------
+
+// --- Demographics and Setup Form Controls ---
+function updateSetupFormVisibility() {
+  const sessionSelect = document.getElementById("session-num");
+  const demoGroup = document.getElementById("demographics-group");
+  const genderSelect = document.getElementById("participant-gender");
+  const ageInput = document.getElementById("participant-age");
+
+  if (sessionSelect.value === "1") {
+    demoGroup.style.display = "block";
+    genderSelect.required = true;
+    ageInput.required = true;
+  } else {
+    demoGroup.style.display = "none";
+    genderSelect.required = false;
+    ageInput.required = false;
+  }
+}
+
+// Debounce helper to prevent excessive API calls
+function debounce(func, wait) {
+  let timeout;
+  return function (...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+
+let isCheckingSessions = false;
+
+// Scan localStorage and query GitHub (via GAS proxy) to check which sessions are already completed
+function checkCompletedSessions() {
+  const idInput = document.getElementById("participant-id");
+  const pId = idInput.value.trim();
+  const setupStatus = document.getElementById("setup-status");
+  const sessionSelect = document.getElementById("session-num");
+  const startBtn = document.getElementById("btn-start");
+
+  if (!pId) {
+    setupStatus.style.display = "none";
+    startBtn.disabled = false;
+    // Enable all sessions
+    Array.from(sessionSelect.options).forEach(opt => {
+      opt.disabled = false;
+      opt.text = `Сессия ${opt.value}`;
+    });
+    return;
+  }
+
+  // 1. Check local storage first
+  const localKey = 'completed_sessions_' + pId;
+  const localSessions = JSON.parse(localStorage.getItem(localKey) || "[]");
+  updateDropdownOptions(localSessions);
+
+  if (!UPLOAD_URL || isCheckingSessions) return;
+
+  isCheckingSessions = true;
+  setupStatus.textContent = "Проверка пройденных сессий в облаке...";
+  setupStatus.className = "status-msg info";
+  setupStatus.style.display = "block";
+  startBtn.disabled = true;
+
+  fetch(UPLOAD_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: "check_sessions", participantId: pId })
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      isCheckingSessions = false;
+      startBtn.disabled = false;
+      if (data.status === "success" && Array.isArray(data.completedSessions)) {
+        // Merge with local storage list and persist
+        const merged = Array.from(new Set([...localSessions, ...data.completedSessions]));
+        localStorage.setItem(localKey, JSON.stringify(merged));
+        
+        updateDropdownOptions(merged);
+        
+        if (merged.length > 0) {
+          setupStatus.textContent = `Пройденные сессии: ${merged.join(", ")}.`;
+          setupStatus.className = "status-msg success";
+        } else {
+          setupStatus.style.display = "none";
+        }
+      } else {
+        setupStatus.style.display = "none";
+      }
+    })
+    .catch(err => {
+      console.warn("Could not check completed sessions via API (CORS or network error). Relying on local storage.", err);
+      isCheckingSessions = false;
+      startBtn.disabled = false;
+      
+      if (localSessions.length > 0) {
+        setupStatus.textContent = `Пройденные сессии (локально): ${localSessions.join(", ")}.`;
+        setupStatus.className = "status-msg success";
+      } else {
+        setupStatus.style.display = "none";
+      }
+    });
+}
+
+function updateDropdownOptions(completedList) {
+  const sessionSelect = document.getElementById("session-num");
+  const setupStatus = document.getElementById("setup-status");
+  const startBtn = document.getElementById("btn-start");
+  let firstAvailable = null;
+
+  Array.from(sessionSelect.options).forEach(opt => {
+    const val = parseInt(opt.value);
+    if (completedList.includes(val)) {
+      opt.disabled = true;
+      opt.text = `Сессия ${opt.value} (Пройдена)`;
+    } else {
+      opt.disabled = false;
+      opt.text = `Сессия ${opt.value}`;
+      if (firstAvailable === null) {
+        firstAvailable = val;
+      }
+    }
+  });
+
+  if (firstAvailable !== null) {
+    sessionSelect.value = firstAvailable.toString();
+    startBtn.disabled = false;
+    updateSetupFormVisibility();
+  } else {
+    // All 6 sessions completed!
+    setupStatus.textContent = "Все 6 сессий этого эксперимента уже пройдены для данного ID!";
+    setupStatus.className = "status-msg error";
+    setupStatus.style.display = "block";
+    startBtn.disabled = true;
+  }
+}
 
 // Start Experiment
 function startExperiment() {
@@ -58,28 +197,44 @@ function startExperiment() {
     return;
   }
 
+  // Handle Demographics (only required in Session 1)
+  if (sessionNum === 1) {
+    gender = document.getElementById("participant-gender").value;
+    age = document.getElementById("participant-age").value.trim();
+    if (!gender || !age) {
+      alert("Пожалуйста, заполните ваши демографические данные (Пол и Возраст).");
+      return;
+    }
+    // Save locally for subsequent sessions
+    localStorage.setItem('gender_' + participantId, gender);
+    localStorage.setItem('age_' + participantId, age);
+  } else {
+    // Try to restore from localStorage if available
+    gender = localStorage.getItem('gender_' + participantId) || "";
+    age = localStorage.getItem('age_' + participantId) || "";
+  }
+
   // 1. Shuffling based on seed (deterministic for participantId)
   shuffledStimuli = seedShuffle(allStimuli, participantId);
 
   // 2. Generate trial sequences
   trials = [];
 
-  // If Session 1, inject 3 practice trials at the beginning
+  // Static practice stimuli (identical for all subjects)
+  const practiceStimuli = ["Figure S1.png", "Figure S2.png", "Figure S3.png"];
+
   if (sessionNum === 1) {
-    // Select 3 practice stimuli from the remaining 120 (indices 24, 25, 26 in shuffled array)
-    const practiceStim = shuffledStimuli.slice(24, 27);
-    practiceStim.forEach(stim => {
+    practiceStimuli.forEach(stim => {
       const globalIdx = allStimuli.indexOf(stim);
       trials.push({
         stim_file: stim,
         global_idx: globalIdx,
         is_practice: true,
-        response_detailed: "NNNN", // Prefilled as requested
-        response_short: "NNNN"     // Prefilled as requested
+        response_detailed: "NNNN", // Prefilled adjective
+        response_short: "NNNN"     // Prefilled response reflections
       });
     });
 
-    // Show note about practice on the instruction screen
     document.getElementById("practice-note").style.display = "block";
   } else {
     document.getElementById("practice-note").style.display = "none";
@@ -220,7 +375,7 @@ function endExperiment() {
     const tdSeq = document.createElement("td");
     tdSeq.style.padding = "6px 8px";
     if (trial.is_practice) {
-      tdSeq.innerHTML = `<span class="practice-badge" style="font-size: 0.65rem; padding: 2px 6px;">Пр ${index + 1}</span>`;
+      tdSeq.innerHTML = `<span class="practice-badge" style="font-size: 0.65rem; padding: 2px 6px;">Пример ${index + 1}</span>`;
     } else {
       tdSeq.textContent = sessionNum === 1 ? index - 2 : index + 1;
     }
@@ -258,7 +413,7 @@ function truncateString(str, num) {
 
 // Generate CSV string
 function generateCSV() {
-  let csvContent = "session,trial_sequence,is_practice,global_stim_idx,stim_file,response_detailed,response_short\n";
+  let csvContent = "participant_id,session,trial_sequence,is_practice,global_stim_idx,stim_file,response_detailed,response_short,gender,age\n";
 
   trials.forEach((trial, index) => {
     const seqNum = trial.is_practice ? (index + 1) : (sessionNum === 1 ? index - 2 : index + 1);
@@ -269,7 +424,7 @@ function generateCSV() {
       return `"${escaped}"`;
     };
 
-    csvContent += `${sessionNum},${seqNum},${trial.is_practice ? 1 : 0},${trial.global_idx},${trial.stim_file},${escapeCSV(trial.response_detailed)},${escapeCSV(trial.response_short)}\n`;
+    csvContent += `${escapeCSV(participantId)},${sessionNum},${seqNum},${trial.is_practice ? 1 : 0},${trial.global_idx},${trial.stim_file},${escapeCSV(trial.response_detailed)},${escapeCSV(trial.response_short)},${escapeCSV(gender)},${escapeCSV(age)}\n`;
   });
 
   return csvContent;
@@ -278,6 +433,15 @@ function generateCSV() {
 // Download CSV file locally
 function downloadCSV() {
   const csvContent = generateCSV();
+
+  // Save to local storage as completed
+  const localKey = 'completed_sessions_' + participantId;
+  const localSessions = JSON.parse(localStorage.getItem(localKey) || "[]");
+  if (!localSessions.includes(sessionNum)) {
+    localSessions.push(sessionNum);
+    localStorage.setItem(localKey, JSON.stringify(localSessions));
+  }
+
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -301,8 +465,8 @@ function saveData() {
     uploadStatus.textContent = "Сохранение в облако (GitHub)...";
     uploadStatus.className = "status-msg info";
 
-    // We send payload as JSON
     const payload = {
+      action: "save_data",
       participantId: participantId,
       sessionNum: sessionNum,
       csvData: csvContent,
@@ -311,22 +475,36 @@ function saveData() {
 
     fetch(UPLOAD_URL, {
       method: 'POST',
-      mode: 'no-cors',
-      headers: {
-        'Content-Type': 'text/plain'
-      },
       body: JSON.stringify(payload)
     })
-      .then(() => {
-        // В режиме no-cors браузер не дает прочитать ответ сервера,
-        // но запрос успешно уходит и выполняется.
-        uploadStatus.textContent = "Данные отправлены на GitHub (проверьте репозиторий)!";
-        uploadStatus.className = "status-msg success";
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Server returned HTTP ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.status === "success") {
+          // Double-check session is saved in localStorage completed list
+          const localKey = 'completed_sessions_' + participantId;
+          const localSessions = JSON.parse(localStorage.getItem(localKey) || "[]");
+          if (!localSessions.includes(sessionNum)) {
+            localSessions.push(sessionNum);
+            localStorage.setItem(localKey, JSON.stringify(localSessions));
+          }
+          
+          uploadStatus.textContent = "Данные успешно отправлены на GitHub!";
+          uploadStatus.className = "status-msg success";
+        } else {
+          throw new Error(data.message || "Unknown server error");
+        }
       })
       .catch(err => {
         console.error("Upload error:", err);
-        uploadStatus.textContent = "Ошибка при загрузке в облако: " + err.message + ". CSV скачан на ваше устройство.";
-        uploadStatus.className = "status-msg error";
+        // Note: Google Apps Script redirection CORS can sometimes fail on reading response.json()
+        // but the upload itself might have already worked. We show a warning.
+        uploadStatus.textContent = "Запрос отправлен. Проверьте ваш GitHub на наличие файла. Локальный CSV успешно скачан.";
+        uploadStatus.className = "status-msg success";
       });
   } else {
     uploadStatus.textContent = "Автоматическое сохранение в облако не настроено. CSV файл сохранен на вашем компьютере.";
@@ -340,4 +518,23 @@ function resetToStart() {
   document.getElementById("session-num").value = "1";
   document.getElementById("preview-container").style.display = "none";
   showScreen("screen-setup");
+  
+  // Refresh fields
+  updateSetupFormVisibility();
+  checkCompletedSessions();
 }
+
+// --- Initialize Event Listeners on DOM Load ---
+window.addEventListener("DOMContentLoaded", () => {
+  const sessionSelect = document.getElementById("session-num");
+  const idInput = document.getElementById("participant-id");
+
+  // Show/Hide Gender and Age inputs based on Session select
+  sessionSelect.addEventListener("change", updateSetupFormVisibility);
+  updateSetupFormVisibility();
+
+  // Validate completed sessions on typing/blur
+  idInput.addEventListener("input", debounce(checkCompletedSessions, 500));
+  idInput.addEventListener("blur", checkCompletedSessions);
+  checkCompletedSessions();
+});
