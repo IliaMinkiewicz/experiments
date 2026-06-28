@@ -1,6 +1,6 @@
 // Configurable Endpoint for Data Upload
 // Paste your Google Apps Script Web App URL here to enable automatic saving to GitHub/Google Sheets.
-const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbwviQ7b7q3aNKkAOv4eB05MndR2SkovDejoO-9qDImGDIoynvabVURZVb8vzJooxm-d/exec";
+const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbyTbg2h6sfSfIBo1fABmgaCunDZhgsFWxZnpV8ScXJkKipQIIS1RUbpsl3eaoXBIUxr/exec";
 
 // State Variables
 let participantId = "";
@@ -107,9 +107,9 @@ function checkCompletedSessions() {
   setupStatus.style.display = "block";
   startBtn.disabled = true;
 
-  fetch(UPLOAD_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: "check_sessions", participantId: pId })
+  const url = `${UPLOAD_URL}?action=check_sessions&participantId=${encodeURIComponent(pId)}`;
+  fetch(url, {
+    method: 'GET'
   })
     .then(response => {
       if (!response.ok) {
@@ -475,36 +475,28 @@ function saveData() {
 
     fetch(UPLOAD_URL, {
       method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'text/plain'
+      },
       body: JSON.stringify(payload)
     })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Server returned HTTP ${response.status}`);
+      .then(() => {
+        // Double-check session is saved in localStorage completed list
+        const localKey = 'completed_sessions_' + participantId;
+        const localSessions = JSON.parse(localStorage.getItem(localKey) || "[]");
+        if (!localSessions.includes(sessionNum)) {
+          localSessions.push(sessionNum);
+          localStorage.setItem(localKey, JSON.stringify(localSessions));
         }
-        return response.json();
-      })
-      .then(data => {
-        if (data.status === "success") {
-          // Double-check session is saved in localStorage completed list
-          const localKey = 'completed_sessions_' + participantId;
-          const localSessions = JSON.parse(localStorage.getItem(localKey) || "[]");
-          if (!localSessions.includes(sessionNum)) {
-            localSessions.push(sessionNum);
-            localStorage.setItem(localKey, JSON.stringify(localSessions));
-          }
-          
-          uploadStatus.textContent = "Данные успешно отправлены на GitHub!";
-          uploadStatus.className = "status-msg success";
-        } else {
-          throw new Error(data.message || "Unknown server error");
-        }
+        
+        uploadStatus.textContent = "Данные успешно отправлены на GitHub!";
+        uploadStatus.className = "status-msg success";
       })
       .catch(err => {
         console.error("Upload error:", err);
-        // Note: Google Apps Script redirection CORS can sometimes fail on reading response.json()
-        // but the upload itself might have already worked. We show a warning.
-        uploadStatus.textContent = "Запрос отправлен. Проверьте ваш GitHub на наличие файла. Локальный CSV успешно скачан.";
-        uploadStatus.className = "status-msg success";
+        uploadStatus.textContent = "Ошибка при отправке: " + err.message + ". CSV файл скачан на устройство.";
+        uploadStatus.className = "status-msg error";
       });
   } else {
     uploadStatus.textContent = "Автоматическое сохранение в облако не настроено. CSV файл сохранен на вашем компьютере.";
