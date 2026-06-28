@@ -34,7 +34,27 @@
             <option value="6">Сессия 6</option>
           </select>
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Продолжить</button>
+        
+        <!-- Demographics (Only for Session 1) -->
+        <div id="demographics-group">
+          <div class="form-group">
+            <label for="participant-gender" class="input-label">Пол:</label>
+            <select id="participant-gender" class="form-input" required>
+              <option value="" disabled selected>Выберите пол</option>
+              <option value="Мужской">Мужской</option>
+              <option value="Женский">Женский</option>
+              <option value="Другой">Другой</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="participant-age" class="input-label">Возраст:</label>
+            <input type="number" id="participant-age" class="form-input" placeholder="Введите возраст" min="1" max="120" required>
+          </div>
+        </div>
+
+        <div id="setup-status" class="status-msg" style="display: none; margin-top: 15px; text-align: left; padding: 10px 14px; font-size: 0.85rem;"></div>
+
+        <button type="submit" id="btn-start" class="btn btn-primary" style="margin-top: 15px; width: 100%;">Продолжить</button>
       </form>
     </div>
 
