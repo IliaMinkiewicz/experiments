@@ -36,13 +36,12 @@ const BRANCH = "main";               // Target branch
 const FOLDER_PATH = "RMET_exp_26_js/data"; // Folder inside the repo where files will be saved
 // ---------------------
 
-function doPost(e) {
+function doGet(e) {
   try {
-    const requestData = JSON.parse(e.postData.contents);
-    const participantId = requestData.participantId;
+    const action = e.parameter.action;
+    const participantId = e.parameter.participantId;
     
-    // Action 1: Check completed sessions on GitHub
-    if (requestData.action === "check_sessions") {
+    if (action === "check_sessions") {
       if (!participantId) {
         return errorResponse("Missing participantId");
       }
@@ -59,7 +58,6 @@ function doPost(e) {
       
       const responseCode = response.getResponseCode();
       if (responseCode === 404) {
-        // Folder or repo doesn't exist yet, so no sessions completed
         return successSessions([]);
       }
       
@@ -70,7 +68,6 @@ function doPost(e) {
       const files = JSON.parse(response.getContentText());
       const completedSessions = [];
       
-      // Escape special characters in participantId for regex safety
       const escapedId = participantId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`^summary_sub-${escapedId}_ses-([1-6])\\.csv$`, 'i');
       
@@ -86,7 +83,16 @@ function doPost(e) {
       return successSessions(completedSessions);
     }
     
-    // Action 2: Save CSV data (default)
+    return errorResponse("Invalid action for GET request");
+  } catch (err) {
+    return errorResponse(`Apps Script GET error: ${err.message}`);
+  }
+}
+
+function doPost(e) {
+  try {
+    const requestData = JSON.parse(e.postData.contents);
+    const participantId = requestData.participantId;
     const sessionNum = requestData.sessionNum;
     const csvData = requestData.csvData;
     
