@@ -1,6 +1,6 @@
 // Configurable Endpoint for Data Upload
 // Paste your Google Apps Script Web App URL here to enable automatic saving to GitHub/Google Sheets.
-const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbysoIY-NmQvdTCzTOwqFOXiFHg9wM75F-j5DL3lh2OGfJb1DBiIDQCMUyjCIFUq8j6l/exec"; 
+const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbxy-1mkYWNuz2c7M6md8dlaZ8gwPDC1s2V58bE9m4IqfISjKajZFWwf5MM0qP7cqXFl/exec";
 
 // State Variables
 let participantId = "";
@@ -25,7 +25,7 @@ function fnv1a(str) {
 }
 
 function mulberry32(a) {
-  return function() {
+  return function () {
     let t = a += 0x6D2B79F5;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
@@ -49,10 +49,10 @@ function seedShuffle(array, seedString) {
 function startExperiment() {
   const idInput = document.getElementById("participant-id");
   const sessionSelect = document.getElementById("session-num");
-  
+
   participantId = idInput.value.trim();
   sessionNum = parseInt(sessionSelect.value);
-  
+
   if (!participantId) {
     alert("Пожалуйста, введите корректный ID.");
     return;
@@ -60,10 +60,10 @@ function startExperiment() {
 
   // 1. Shuffling based on seed (deterministic for participantId)
   shuffledStimuli = seedShuffle(allStimuli, participantId);
-  
+
   // 2. Generate trial sequences
   trials = [];
-  
+
   // If Session 1, inject 3 practice trials at the beginning
   if (sessionNum === 1) {
     // Select 3 practice stimuli from the remaining 120 (indices 24, 25, 26 in shuffled array)
@@ -78,18 +78,18 @@ function startExperiment() {
         response_short: "NNNN"     // Prefilled as requested
       });
     });
-    
+
     // Show note about practice on the instruction screen
     document.getElementById("practice-note").style.display = "block";
   } else {
     document.getElementById("practice-note").style.display = "none";
   }
-  
+
   // Add the 24 main trials of the session
   const sessionStartIdx = (sessionNum - 1) * 24;
   const sessionEndIdx = sessionStartIdx + 24;
   const mainStim = shuffledStimuli.slice(sessionStartIdx, sessionEndIdx);
-  
+
   mainStim.forEach(stim => {
     const globalIdx = allStimuli.indexOf(stim);
     trials.push({
@@ -124,12 +124,12 @@ function goToTrial() {
 // Render Trial content
 function renderTrial() {
   const trial = trials[trialPointer];
-  
+
   // Update header and progress
   const progressContainer = document.getElementById("trial-progress");
   const counterElement = document.getElementById("trial-counter");
   const practiceIndicator = document.getElementById("practice-indicator");
-  
+
   if (trial.is_practice) {
     practiceIndicator.style.display = "inline-block";
     counterElement.textContent = `Тренировка: Проба ${trialPointer + 1} из 3`;
@@ -142,17 +142,17 @@ function renderTrial() {
     const pct = (mainTrialIndex / 24) * 100;
     progressContainer.style.width = `${pct}%`;
   }
-  
+
   // Set image source
   document.getElementById("stimulus-img").src = `stimuli/${trial.stim_file}`;
-  
+
   // Set text box values
   const textLong = document.getElementById("textbox-long");
   const textShort = document.getElementById("textbox-short");
-  
+
   textLong.value = trial.response_detailed;
   textShort.value = trial.response_short;
-  
+
   // Configure Back button visibility
   const btnBack = document.getElementById("btn-back");
   if (trialPointer > 0) {
@@ -166,13 +166,13 @@ function renderTrial() {
 function handleNext() {
   const textLong = document.getElementById("textbox-long");
   const textShort = document.getElementById("textbox-short");
-  
+
   // Save current responses
   trials[trialPointer].response_detailed = textLong.value.trim();
   trials[trialPointer].response_short = textShort.value.trim();
-  
+
   trialPointer++;
-  
+
   if (trialPointer < trials.length) {
     renderTrial();
   } else {
@@ -185,11 +185,11 @@ function handleBack() {
   if (trialPointer > 0) {
     const textLong = document.getElementById("textbox-long");
     const textShort = document.getElementById("textbox-short");
-    
+
     // Save current values before going back
     trials[trialPointer].response_detailed = textLong.value.trim();
     trials[trialPointer].response_short = textShort.value.trim();
-    
+
     trialPointer--;
     renderTrial();
   }
@@ -208,15 +208,15 @@ function toggleHelpModal(show) {
 // End Experiment Phase
 function endExperiment() {
   showScreen("screen-end");
-  
+
   // Fill Results Preview table
   const tbody = document.getElementById("preview-body");
   tbody.innerHTML = "";
-  
+
   trials.forEach((trial, index) => {
     const tr = document.createElement("tr");
     tr.style.borderBottom = "1px solid rgba(255, 255, 255, 0.05)";
-    
+
     const tdSeq = document.createElement("td");
     tdSeq.style.padding = "6px 8px";
     if (trial.is_practice) {
@@ -224,28 +224,28 @@ function endExperiment() {
     } else {
       tdSeq.textContent = sessionNum === 1 ? index - 2 : index + 1;
     }
-    
+
     const tdStim = document.createElement("td");
     tdStim.style.padding = "6px 8px";
     tdStim.textContent = trial.stim_file;
-    
+
     const tdLong = document.createElement("td");
     tdLong.style.padding = "6px 8px";
     tdLong.textContent = truncateString(trial.response_detailed, 20);
-    
+
     const tdShort = document.createElement("td");
     tdShort.style.padding = "6px 8px";
     tdShort.textContent = truncateString(trial.response_short, 20);
-    
+
     tr.appendChild(tdSeq);
     tr.appendChild(tdStim);
     tr.appendChild(tdLong);
     tr.appendChild(tdShort);
     tbody.appendChild(tr);
   });
-  
+
   document.getElementById("preview-container").style.display = "block";
-  
+
   // Auto Save & Upload
   saveData();
 }
@@ -259,19 +259,19 @@ function truncateString(str, num) {
 // Generate CSV string
 function generateCSV() {
   let csvContent = "session,trial_sequence,is_practice,global_stim_idx,stim_file,response_detailed,response_short\n";
-  
+
   trials.forEach((trial, index) => {
     const seqNum = trial.is_practice ? (index + 1) : (sessionNum === 1 ? index - 2 : index + 1);
-    
+
     const escapeCSV = (str) => {
       if (!str) return "";
       const escaped = str.replace(/"/g, '""');
       return `"${escaped}"`;
     };
-    
+
     csvContent += `${sessionNum},${seqNum},${trial.is_practice ? 1 : 0},${trial.global_idx},${trial.stim_file},${escapeCSV(trial.response_detailed)},${escapeCSV(trial.response_short)}\n`;
   });
-  
+
   return csvContent;
 }
 
@@ -291,16 +291,16 @@ function downloadCSV() {
 // Handle Auto-saving (Local Download + Cloud Upload if URL configured)
 function saveData() {
   const csvContent = generateCSV();
-  
+
   // 1. Trigger local download automatically
   downloadCSV();
-  
+
   // 2. Upload to Cloud if URL is provided
   const uploadStatus = document.getElementById("upload-status");
   if (UPLOAD_URL) {
     uploadStatus.textContent = "Сохранение в облако (GitHub)...";
     uploadStatus.className = "status-msg info";
-    
+
     // We send payload as JSON
     const payload = {
       participantId: participantId,
@@ -308,34 +308,26 @@ function saveData() {
       csvData: csvContent,
       timestamp: new Date().toISOString()
     };
-    
+
     fetch(UPLOAD_URL, {
       method: 'POST',
-      mode: 'cors',
+      mode: 'no-cors',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'text/plain'
       },
       body: JSON.stringify(payload)
     })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error("HTTP error " + response.status);
-      }
-      return response.json();
-    })
-    .then(data => {
-      if (data && data.status === "success") {
-        uploadStatus.textContent = "Данные успешно сохранены на GitHub!";
+      .then(() => {
+        // В режиме no-cors браузер не дает прочитать ответ сервера,
+        // но запрос успешно уходит и выполняется.
+        uploadStatus.textContent = "Данные отправлены на GitHub (проверьте репозиторий)!";
         uploadStatus.className = "status-msg success";
-      } else {
-        throw new Error(data.message || "Unknown error response");
-      }
-    })
-    .catch(err => {
-      console.error("Upload error:", err);
-      uploadStatus.textContent = "Ошибка при загрузке в облако: " + err.message + ". CSV скачан на ваше устройство.";
-      uploadStatus.className = "status-msg error";
-    });
+      })
+      .catch(err => {
+        console.error("Upload error:", err);
+        uploadStatus.textContent = "Ошибка при загрузке в облако: " + err.message + ". CSV скачан на ваше устройство.";
+        uploadStatus.className = "status-msg error";
+      });
   } else {
     uploadStatus.textContent = "Автоматическое сохранение в облако не настроено. CSV файл сохранен на вашем компьютере.";
     uploadStatus.className = "status-msg info";
