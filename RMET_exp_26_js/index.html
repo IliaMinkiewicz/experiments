@@ -45,12 +45,12 @@
         <div class="instruction-text">
           <p>Представьте, что человек, чьи глаза вы видите на фотографии — это ваш хороший знакомый или знакомая, который стоит прямо перед вами.</p>
           <p>Прислушайтесь к своим внутренним ощущениям в этот момент. Что вы чувствуете, когда видите такой взгляд, направленный на вас?</p>
-          <p>Вам будет предложено ответить на два вопроса на каждой пробе:</p>
+          <p>В каждой пробе вам будет предложено ответить на два вопроса:</p>
           <ul>
-            <li>Какие эмоциональные переживания испытывает человек напротив?</li>
-            <li>Какие ответные эмоциональные переживания возникают у вас?</li>
+            <li>Охарактеризуйте направленный на вас взгляд одним прилагательным.</li>
+            <li>Какие ответные эмоциональные переживания возникают у вас? Можно использовать несколько слов, перечислите их через запятую.</li>
           </ul>
-          <p id="practice-note" style="color: #f59e0b; font-weight: 500; display: none;">Внимание: Поскольку это 1-я сессия, сначала вы пройдете 3 тренировочные пробы.</p>
+          <p id="practice-note" style="color: #f59e0b; font-weight: 500; display: none;">Внимание: Перед началом 1-ой сессии, сначала вам будет показано 3 пробы с примерами описаний взгляда и ответных переживаний.</p>
         </div>
       </div>
       <button onclick="goToTrial()" class="btn btn-primary">Начать</button>
@@ -60,7 +60,7 @@
     <div id="screen-trial" class="screen">
       <div class="header-bar">
         <span id="trial-counter">Проба 1 из 24</span>
-        <span id="practice-indicator" class="practice-badge" style="display: none;">Тренировка</span>
+        <span id="practice-indicator" class="practice-badge" style="display: none;">Примеры</span>
       </div>
       
       <div class="progress-container">
@@ -73,12 +73,12 @@
 
       <div class="inputs-box">
         <div class="input-group">
-          <label for="textbox-long" class="input-label">Какие эмоциональные переживания испытывает человек напротив?</label>
-          <textarea id="textbox-long" class="textbox" placeholder="Введите детальное описание эмоциональных переживаний человека напротив..."></textarea>
+          <label for="textbox-long" class="input-label">Охарактеризуйте направленный на вас взгляд одним прилагательным.</label>
+          <textarea id="textbox-long" class="textbox" placeholder="..."></textarea>
         </div>
         <div class="input-group">
           <label for="textbox-short" class="input-label">Какие ответные эмоциональные переживания возникают у вас?</label>
-          <textarea id="textbox-short" class="textbox" placeholder="Введите ваши ответные эмоциональные переживания..."></textarea>
+          <textarea id="textbox-short" class="textbox" placeholder="..."></textarea>
         </div>
       </div>
 
@@ -134,7 +134,7 @@
         Прислушайтесь к своим внутренним ощущениям в этот момент. Что вы чувствуете, когда видите такой взгляд, направленный на вас?
         
         Ответьте на вопросы:
-        1. Какие эмоциональные переживания испытывает человек напротив?
+        1. Охарактеризуйте направленный на вас взгляд одним прилагательным.
         2. Какие ответные эмоциональные переживания возникают у вас?
       </div>
       <button onclick="toggleHelpModal(false)" class="btn btn-primary">Вернуться к оценке</button>
