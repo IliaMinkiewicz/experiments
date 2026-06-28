@@ -165,11 +165,11 @@ body {
 }
 
 #textbox-long {
-  height: 100px;
+  height: 65px;
 }
 
 #textbox-short {
-  height: 70px;
+  height: 110px;
 }
 
 /* Navigation buttons bar */
