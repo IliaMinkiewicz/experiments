@@ -251,21 +251,43 @@ function startExperiment() {
   // 1. Shuffling based on seed (deterministic for participantId)
   shuffledStimuli = seedShuffle(allStimuli, participantId);
 
+  // Ensure the 4 practice stimuli are NOT in the first 24 items (Session 1 main trials)
+  const forbiddenInSession1 = ["Figure S3.png", "Figure S2.png", "Figure S111.png", "Figure S139.png"];
+  for (let i = 0; i < 24; i++) {
+    if (forbiddenInSession1.includes(shuffledStimuli[i])) {
+      for (let j = 24; j < shuffledStimuli.length; j++) {
+        if (!forbiddenInSession1.includes(shuffledStimuli[j])) {
+          const temp = shuffledStimuli[i];
+          shuffledStimuli[i] = shuffledStimuli[j];
+          shuffledStimuli[j] = temp;
+          break;
+        }
+      }
+    }
+  }
+
   // 2. Generate trial sequences
   trials = [];
 
-  // Static practice stimuli (identical for all subjects)
-  const practiceStimuli = ["Figure S1.png", "Figure S2.png", "Figure S3.png"];
+  // Static practice stimuli data with prefilled values
+  const practiceData = [
+    { stim: "Figure S3.png", adj: "любящий", feel: "Тепло, нежность, лёгкая тревога" },
+    { stim: "Figure S2.png", adj: "обвиняющий", feel: "Беспокойство, вина, тревога" },
+    { stim: "Figure S111.png", adj: "игривый", feel: "Интерес, радость, предвосхищение" },
+    { stim: "Figure S139.png", adj: "угрожающий", feel: "Напряжение, настороженность, скованность" }
+  ];
 
   if (sessionNum === 1) {
-    practiceStimuli.forEach(stim => {
-      const globalIdx = allStimuli.indexOf(stim);
+    // Shuffle the practice trials deterministically per subject
+    const shuffledPractice = seedShuffle(practiceData, participantId + "_practice");
+    shuffledPractice.forEach(item => {
+      const globalIdx = allStimuli.indexOf(item.stim);
       trials.push({
-        stim_file: stim,
+        stim_file: item.stim,
         global_idx: globalIdx,
         is_practice: true,
-        response_adjective: "NNNN", // Prefilled adjective
-        response_feelings: "NNNN",  // Prefilled response reflections
+        response_adjective: item.adj,
+        response_feelings: item.feel,
         rt_ms: null,
         onset_iso: null
       });
@@ -325,12 +347,12 @@ function renderTrial() {
 
   if (trial.is_practice) {
     practiceIndicator.style.display = "inline-block";
-    counterElement.textContent = `Тренировка: Проба ${trialPointer + 1} из 3`;
-    const pct = ((trialPointer + 1) / 3) * 100;
+    counterElement.textContent = `Тренировка: Проба ${trialPointer + 1} из 4`;
+    const pct = ((trialPointer + 1) / 4) * 100;
     progressContainer.style.width = `${pct}%`;
   } else {
     practiceIndicator.style.display = "none";
-    const mainTrialIndex = sessionNum === 1 ? (trialPointer - 2) : (trialPointer + 1);
+    const mainTrialIndex = sessionNum === 1 ? (trialPointer - 3) : (trialPointer + 1);
     counterElement.textContent = `Проба ${mainTrialIndex} из 24`;
     const pct = (mainTrialIndex / 24) * 100;
     progressContainer.style.width = `${pct}%`;
@@ -456,7 +478,7 @@ function endExperiment() {
     if (trial.is_practice) {
       tdSeq.innerHTML = `<span class="practice-badge" style="font-size: 0.65rem; padding: 2px 6px;">Пример ${index + 1}</span>`;
     } else {
-      tdSeq.textContent = sessionNum === 1 ? index - 2 : index + 1;
+      tdSeq.textContent = sessionNum === 1 ? index - 3 : index + 1;
     }
 
     const tdStim = document.createElement("td");
@@ -507,7 +529,7 @@ function generateCSV() {
   let csvContent = "participant_id,session,trial_sequence,is_practice,global_stim_idx,stim_file,response_adjective,response_feelings,rt_ms,onset_iso,gender,age\n";
 
   trials.forEach((trial, index) => {
-    const seqNum = trial.is_practice ? (index + 1) : (sessionNum === 1 ? index - 2 : index + 1);
+    const seqNum = trial.is_practice ? (index + 1) : (sessionNum === 1 ? index - 3 : index + 1);
 
     const escapeCSV = (str) => {
       if (!str) return "";
