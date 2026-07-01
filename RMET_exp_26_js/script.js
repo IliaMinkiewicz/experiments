@@ -368,6 +368,14 @@ function renderTrial() {
   textAdjective.value = trial.response_adjective;
   textFeelings.value = trial.response_feelings;
 
+  if (trial.is_practice) {
+    textAdjective.readOnly = true;
+    textFeelings.readOnly = true;
+  } else {
+    textAdjective.readOnly = false;
+    textFeelings.readOnly = false;
+  }
+
   // Configure Back button visibility
   const btnBack = document.getElementById("btn-back");
   if (trialPointer > 0) {
