@@ -1,0 +1,67 @@
+{
+ "pid": "TESTLOCAL3",
+ "code": "NM-F8W7PS",
+ "list": "3",
+ "final": true,
+ "meta": {
+  "code": "NM-F8W7PS",
+  "pid": "TESTLOCAL3",
+  "worker": "TESTLOCAL3",
+  "list": 3,
+  "seed": 233814239,
+  "version": "test",
+  "demo": {
+   "age": 41,
+   "sex": "ж",
+   "native_ru": "нет"
+  },
+  "startedAt": "2026-08-18T18:07:41.687Z",
+  "finishedAt": "2026-08-18T18:08:42.200Z",
+  "nTrials": 42,
+  "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+  "screen": "902x899"
+ },
+ "rows": [
+  {
+   "code": "NM-F8W7PS",
+   "pid": "TESTLOCAL3",
+   "worker": "TESTLOCAL3",
+   "list": 3,
+   "seed": 233814239,
+   "version": "test",
+   "kind": "main",
+   "pos": 41,
+   "stim_id": "fishbowl",
+   "file": "img/fishbowl_gray.jpg",
+   "check": "",
+   "answer": "молоток",
+   "answer_raw_len": 7,
+   "latin": 0,
+   "ease": 2,
+   "rt_first_key": 796,
+   "rt_submit": 796,
+   "ts": "2026-08-18T18:08:41.397Z"
+  },
+  {
+   "code": "NM-F8W7PS",
+   "pid": "TESTLOCAL3",
+   "worker": "TESTLOCAL3",
+   "list": 3,
+   "seed": 233814239,
+   "version": "test",
+   "kind": "main",
+   "pos": 42,
+   "stim_id": "312",
+   "file": "img/312gs.jpg",
+   "check": "",
+   "answer": "фонарь",
+   "answer_raw_len": 6,
+   "latin": 0,
+   "ease": 3,
+   "rt_first_key": 795,
+   "rt_submit": 795,
+   "ts": "2026-08-18T18:08:42.199Z"
+  }
+ ],
+ "received": "2026-08-18T18:08:43.468Z"
+}
