@@ -264,10 +264,18 @@ function flushChunk(isFinal) {
     final: !!isFinal, meta: isFinal ? sessionMeta() : null, rows: batch
   };
   return post(payload)
-    .then(txt => { log("отправлено " + batch.length + " → " + txt.slice(0, 60)); return true; })
+    .then(res => {
+      // ВАЖНО: логирование обёрнуто в try. Раньше здесь вызывался txt.slice() на объекте,
+      // который возвращает post(); TypeError ловился соседним .catch, и успешно
+      // отправленная порция возвращалась в очередь. Очередь не опустошалась никогда:
+      // каждая следующая отправка везла всё с начала, объём рос квадратично,
+      // а участник всё равно видел «Данные отправлены».
+      try { log("отправлено " + batch.length + " → " + ((res && res.file) || "ok")); } catch (e) {}
+      return true;
+    })
     .catch(err => {                      // не потерять: вернуть в очередь
       S.pending = batch.concat(S.pending);
-      log("ошибка отправки: " + err);
+      try { log("ошибка отправки: " + err); } catch (e) {}
       return false;
     });
 }
