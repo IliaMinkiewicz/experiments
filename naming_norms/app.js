@@ -42,12 +42,19 @@ function randCode(n) {
 
 // ---------- состояние ----------
 const params  = new URLSearchParams(location.search);
-const LIST    = parseInt(params.get("list") || "1", 10);
 const WORKER  = (params.get("w") || params.get("worker") || "").slice(0, 64);
 const PID     = WORKER || ("anon_" + randCode(8));
 const CODE    = "NM-" + randCode(6);
 const SEED    = Math.floor(Math.random() * 1e9);
-const STORE   = "naming_" + PID + "_L" + LIST;
+
+// Номер списка приходит не из ссылки, а назначается на старте: площадке отдаётся
+// одно задание с ?list=auto, и оно выдаётся исполнителю ровно один раз. Так запрет
+// пересечения списков обеспечивается самой площадкой, без механики навыков.
+// Явный ?list=1..3 оставлен для тестирования.
+const LIST_PARAM = (params.get("list") || "auto").toLowerCase();
+const ASSIGN_KEY = "naming_assigned_" + (WORKER || "anon");
+let LIST  = 0;
+let STORE = "";
 
 const S = {
   trials: [], idx: 0, rows: [], pending: [],
@@ -60,13 +67,45 @@ function gateChecks() {
   if (!CONFIG.enabled) { show("screen-closed"); return false; }
   const mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|Mobile/i.test(navigator.userAgent);
   if (mobileUA || window.innerWidth < CONFIG.minWidth) { show("screen-device"); return false; }
-  if (![1, 2, 3].includes(LIST)) {
-    show("screen-closed");
-    $("screen-closed").querySelector("p").textContent =
-      "Ссылка открыта без номера списка. Вернитесь к заданию и перейдите по ссылке из него.";
-    return false;
-  }
   return true;
+}
+
+// ---------- назначение списка ----------
+// Порядок: явный номер в ссылке -> уже назначенный этому исполнителю -> самый пустой.
+// Назначение запоминается в localStorage, чтобы перезагрузка страницы не перебросила
+// человека на другой список: иначе он увидел бы часть картинок дважды.
+function resolveList() {
+  const direct = parseInt(LIST_PARAM, 10);
+  if ([1, 2, 3].includes(direct)) return Promise.resolve(direct);
+  if (LIST_PARAM !== "auto") return Promise.resolve(0);   // мусор в параметре
+
+  const pinned = parseInt(localStorage.getItem(ASSIGN_KEY) || "", 10);
+  if ([1, 2, 3].includes(pinned)) { log("список закреплён ранее: " + pinned); return Promise.resolve(pinned); }
+
+  return fetch(CONFIG.uploadUrl + "?action=counts&secret=" + encodeURIComponent(CONFIG.secret))
+    .then(r => r.json())
+    .then(j => {
+      if (!j || !j.ok) throw new Error(j && j.error || "counts");
+      let min = Infinity, best = [];
+      [1, 2, 3].forEach(L => {
+        const n = (j.counts && j.counts["L" + L]) || 0;
+        if (n < min) { min = n; best = [L]; } else if (n === min) best.push(L);
+      });
+      // при равенстве — жребий: иначе несколько человек, стартовавших одновременно,
+      // дружно уйдут в один и тот же список
+      const L = best[Math.floor(Math.random() * best.length)];
+      log("наполненность " + JSON.stringify(j.counts) + " -> список " + L);
+      return L;
+    })
+    .catch(err => {
+      // сервер недоступен: отдать случайный список, но участника не терять
+      log("counts не ответил (" + err + "), список выбран жребием");
+      return 1 + Math.floor(Math.random() * 3);
+    })
+    .then(L => {
+      try { localStorage.setItem(ASSIGN_KEY, String(L)); } catch (e) {}
+      return L;
+    });
 }
 
 // ---------- загрузка стимулов ----------
@@ -384,13 +423,24 @@ function wire() {
 if (gateChecks()) {
   buildScale();
   wire();
-  loadStimuli()
-    .then(() => { buildTrials(); show("screen-consent"); })
+  show("screen-loading");
+  resolveList()
+    .then(L => {
+      if (![1, 2, 3].includes(L)) {
+        show("screen-closed");
+        $("screen-closed").querySelector("p").textContent =
+          "Ссылка открыта неправильно. Вернитесь к заданию и перейдите по ссылке из него.";
+        return null;                      // дальше по цепочке не идём
+      }
+      LIST  = L;
+      STORE = "naming_" + PID + "_L" + LIST;
+      return loadStimuli().then(() => { buildTrials(); show("screen-consent"); });
+    })
     .catch(err => {
       show("screen-closed");
       $("screen-closed").querySelector("p").textContent =
         "Не удалось загрузить задание. Обновите страницу или напишите исследователю.";
-      log("ошибка загрузки stimuli.json: " + err);
+      log("ошибка загрузки: " + err);
     });
 }
 })();

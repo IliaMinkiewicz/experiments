@@ -71,6 +71,21 @@ function doGet(e) {
 
   if (p.action === "ping") return json({ ok: true, accepting: ACCEPTING });
 
+  if (p.action === "counts") {              // сколько участников ЗАВЕРШИЛО каждый список
+    // Считаем по файлам с суффиксом __final: они пишутся только на экране «Спасибо».
+    // Брошенные на середине прогоны в счёт не идут — иначе список закрывался бы
+    // от людей, которые до конца не дошли.
+    const counts = {};
+    for (let L = 1; L <= 3; L++) {
+      const pids = {};
+      listFolder(FOLDER + "/L" + L).forEach(f => {
+        if (f.indexOf("__final") !== -1) pids[f.split("__")[0]] = 1;
+      });
+      counts["L" + L] = Object.keys(pids).length;
+    }
+    return json({ ok: true, counts: counts });
+  }
+
   if (p.action === "verify") {              // сколько порций уже принято от участника
     const list = String(parseInt(p.list, 10) || 0);
     const pid  = sanitize(p.pid || "");
