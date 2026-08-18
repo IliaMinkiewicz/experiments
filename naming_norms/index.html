@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Называние изображений — исследование</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- набор закрыт -->
+<section id="screen-closed" class="screen">
+  <div class="card">
+    <h1>Набор участников закрыт</h1>
+    <p>Спасибо за интерес к исследованию. Сейчас сбор данных не ведётся.</p>
+  </div>
+</section>
+
+<!-- только с компьютера -->
+<section id="screen-device" class="screen">
+  <div class="card">
+    <h1>Нужен компьютер</h1>
+    <p>Задание требует ввода текста с клавиатуры и корректного отображения изображений,
+       поэтому выполняется только с компьютера или ноутбука.</p>
+    <p>Пожалуйста, откройте эту страницу на компьютере.</p>
+  </div>
+</section>
+
+<!-- согласие -->
+<section id="screen-consent" class="screen">
+  <div class="card">
+    <h1>Согласие на участие</h1>
+    <div id="consent-text" class="scrollbox">
+      <p><em>[ТЕКСТ ИНФОРМИРОВАННОГО СОГЛАСИЯ — ВСТАВИТЬ ПЕРЕД ЗАПУСКОМ]</em></p>
+      <p>Исследование посвящено тому, как люди называют изображённые предметы.
+         Вам будет показано несколько десятков картинок; для каждой нужно написать,
+         что на ней изображено, и оценить, насколько легко было подобрать название.</p>
+      <p>Участие добровольное, задание занимает около 10 минут. Ответы обрабатываются
+         обезличенно и используются только в научных целях.</p>
+    </div>
+    <label class="checkline">
+      <input type="checkbox" id="consent-check">
+      <span>Я прочитал(а) информацию и согласен(на) участвовать</span>
+    </label>
+    <button id="btn-consent" class="primary" disabled>Продолжить</button>
+  </div>
+</section>
+
+<!-- демография -->
+<section id="screen-demo" class="screen">
+  <div class="card">
+    <h1>Несколько вопросов о вас</h1>
+    <div class="field">
+      <label for="demo-age">Возраст (полных лет)</label>
+      <input type="number" id="demo-age" min="16" max="99" step="1" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label for="demo-sex">Пол</label>
+      <select id="demo-sex">
+        <option value="">— выберите —</option>
+        <option value="ж">женский</option>
+        <option value="м">мужской</option>
+        <option value="др">другое / не хочу указывать</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="demo-lang">Русский язык для вас родной?</label>
+      <select id="demo-lang">
+        <option value="">— выберите —</option>
+        <option value="да">да</option>
+        <option value="нет">нет</option>
+      </select>
+    </div>
+    <p class="err" id="demo-err"></p>
+    <button id="btn-demo" class="primary">Продолжить</button>
+  </div>
+</section>
+
+<!-- инструкция -->
+<section id="screen-instr" class="screen">
+  <div class="card">
+    <h1>Инструкция</h1>
+    <p>Сейчас вам будут по одной показывать чёрно-белые фотографии предметов.</p>
+    <p><strong>Ваша задача — написать, что изображено на картинке.</strong>
+       Отвечайте так, как назвали бы этот предмет в обычном разговоре: одним словом
+       или коротким словосочетанием.</p>
+    <ul>
+      <li>Пишите первое название, которое приходит в голову.</li>
+      <li>Не нужно описывать картинку целиком — только сам предмет.</li>
+      <li>Если предмет кажется незнакомым, напишите наиболее подходящее название.</li>
+    </ul>
+    <p>После названия оцените, <strong>насколько легко было его подобрать</strong>,
+       по шкале от 1 до 7.</p>
+    <p>Сначала — три пробных картинки для тренировки.</p>
+    <p class="muted" id="preload-status">Загрузка изображений…</p>
+    <button id="btn-instr" class="primary" disabled>Начать тренировку</button>
+  </div>
+</section>
+
+<!-- проба -->
+<section id="screen-trial" class="screen">
+  <div class="trial-wrap">
+    <div class="progress"><div class="progress-bar" id="progress-bar"></div></div>
+    <p class="trial-counter" id="trial-counter"></p>
+
+    <div class="stim-box">
+      <img id="stim-img" alt="">
+      <p id="stim-text" class="stim-text"></p>
+    </div>
+
+    <div class="answer">
+      <label for="answer-input">Что изображено на картинке?</label>
+      <input type="text" id="answer-input" autocomplete="off" autocorrect="off"
+             autocapitalize="off" spellcheck="false" maxlength="60">
+      <p class="err" id="trial-err"></p>
+    </div>
+
+    <div class="ease" id="ease-block">
+      <p class="ease-q">Насколько легко было подобрать название?</p>
+      <div class="scale" id="ease-scale"></div>
+      <div class="scale-labels"><span>1 — очень легко</span><span>7 — очень сложно</span></div>
+    </div>
+
+    <button id="btn-next" class="primary" disabled>Дальше</button>
+    <p class="muted small" id="train-feedback"></p>
+  </div>
+</section>
+
+<!-- завершение -->
+<section id="screen-done" class="screen">
+  <div class="card">
+    <h1>Спасибо!</h1>
+    <p>Задание выполнено. Скопируйте код и вставьте его в форму на площадке:</p>
+    <div class="code-box" id="completion-code">—</div>
+    <p class="muted" id="upload-status">Отправка данных…</p>
+
+    <div id="manual-save" class="hidden">
+      <p class="err">Не удалось отправить данные автоматически.</p>
+      <p>Пожалуйста, скопируйте текст ниже целиком и отправьте его исследователю
+         вместе с кодом — иначе ваша работа не будет засчитана.</p>
+      <textarea id="manual-data" readonly rows="6"></textarea>
+      <button id="btn-copy" class="secondary">Скопировать</button>
+    </div>
+  </div>
+</section>
+
+<div id="debug" class="hidden"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

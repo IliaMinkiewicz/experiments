@@ -1,0 +1,709 @@
+{
+ "seed": 20260812,
+ "lists": 3,
+ "train": [
+  {
+   "id": "ladder",
+   "file": "ladder_gray.jpg",
+   "ru": "лестница"
+  },
+  {
+   "id": "envelope",
+   "file": "envelope_gray.jpg",
+   "ru": "конверт"
+  },
+  {
+   "id": "broom",
+   "file": "broom_gray.jpg",
+   "ru": "метла"
+  }
+ ],
+ "items": [
+  {
+   "id": "167",
+   "file": "167gs.jpg",
+   "list": 3
+  },
+  {
+   "id": "290",
+   "file": "290gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "cabbage",
+   "file": "cabbage_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "carrot",
+   "file": "carrot_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "chips",
+   "file": "chips_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "coffee",
+   "file": "coffee_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "cracker",
+   "file": "cracker_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "cucumber",
+   "file": "cucumber_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "garlic",
+   "file": "garlic_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "grapefruit",
+   "file": "grapefruit_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "macaroni",
+   "file": "macaroni_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "pancake",
+   "file": "pancake_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "peanut",
+   "file": "peanut_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "pomegranate",
+   "file": "pomegranate_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "pumpkin",
+   "file": "pumpkin_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "scallion",
+   "file": "scallion_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "strawberry",
+   "file": "strawberry_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "030",
+   "file": "030gs.jpg",
+   "list": 2
+  },
+  {
+   "id": "1043",
+   "file": "1043gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "1070",
+   "file": "1070gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "1341",
+   "file": "1341gs.jpg",
+   "list": 3
+  },
+  {
+   "id": "418",
+   "file": "418gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "basket",
+   "file": "basket_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "birdhouse",
+   "file": "birdhouse_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "bookshelf",
+   "file": "bookshelf_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "candlestick",
+   "file": "candlestick_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "coffee_table",
+   "file": "coffee_table_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "corkscrew",
+   "file": "corkscrew_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "fishbowl",
+   "file": "fishbowl_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "frame",
+   "file": "frame_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "hot-water_bottle",
+   "file": "hot-water_bottle_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "jar",
+   "file": "jar_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "ladle",
+   "file": "ladle_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "lampshade",
+   "file": "lampshade_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "mascara",
+   "file": "mascara_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "microwave",
+   "file": "microwave_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "pillow",
+   "file": "pillow_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "rug",
+   "file": "rug_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "tie",
+   "file": "tie_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "toilet_paper",
+   "file": "toilet_paper_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "toothpaste",
+   "file": "toothpaste_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "wallet",
+   "file": "wallet_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "water_cooler",
+   "file": "water_cooler_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "497",
+   "file": "497gs.jpg",
+   "list": 2
+  },
+  {
+   "id": "567",
+   "file": "567gs.jpg",
+   "list": 2
+  },
+  {
+   "id": "axe",
+   "file": "axe_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "bolt",
+   "file": "bolt_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "charger",
+   "file": "charger_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "crutch",
+   "file": "crutch_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "drill",
+   "file": "drill_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "extinguisher",
+   "file": "extinguisher_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "jackhammer",
+   "file": "jackhammer_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "light_switch",
+   "file": "light_switch_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "lock",
+   "file": "lock_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "paint",
+   "file": "paint_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "parachute",
+   "file": "parachute_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "pencil",
+   "file": "pencil_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "pickax",
+   "file": "pickax_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "plunger",
+   "file": "plunger_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "saw",
+   "file": "saw_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "sewing_kit",
+   "file": "sewing_kit_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "shears",
+   "file": "shears_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "shovel",
+   "file": "shovel_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "staple_gun",
+   "file": "staple_gun_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "stethoscope",
+   "file": "stethoscope_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "velcro",
+   "file": "velcro_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "019",
+   "file": "019gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "130",
+   "file": "130gs.jpg",
+   "list": 3
+  },
+  {
+   "id": "545",
+   "file": "545gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "airplane",
+   "file": "airplane_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "balloon",
+   "file": "balloon_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "boxing_gloves",
+   "file": "boxing_gloves_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "carriage",
+   "file": "carriage_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "domino",
+   "file": "domino_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "jigsaw_puzzle",
+   "file": "jigsaw_puzzle_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "paddle",
+   "file": "paddle_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "ping-pong_table",
+   "file": "ping-pong_table_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "punching_bag",
+   "file": "punching_bag_gray.jpg",
+   "list": 1
+  },
+  {
+   "id": "robot",
+   "file": "robot_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "rocket",
+   "file": "rocket_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "scooter",
+   "file": "scooter_gray.jpg",
+   "list": 3
+  },
+  {
+   "id": "skateboard",
+   "file": "skateboard_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "sled",
+   "file": "sled_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "slingshot",
+   "file": "slingshot_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "speedboat",
+   "file": "speedboat_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "sword",
+   "file": "sword_gray.jpg",
+   "list": 2
+  },
+  {
+   "id": "096",
+   "file": "096gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "1290",
+   "file": "1290gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "1315",
+   "file": "1315gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "212",
+   "file": "212gs.jpg",
+   "list": 2
+  },
+  {
+   "id": "216",
+   "file": "216gs.jpg",
+   "list": 1
+  },
+  {
+   "id": "286",
+   "file": "286gs.jpg",
+   "list": 2
+  },
+  {
+   "id": "301",
+   "file": "301gs.jpg",
+   "list": 3
+  },
+  {
+   "id": "554",
+   "file": "554gs.jpg",
+   "list": 2
+  },
+  {
+   "id": "1044",
+   "file": "1044gs.jpg",
+   "list": 1,
+   "check": "attention"
+  },
+  {
+   "id": "1044",
+   "file": "1044gs.jpg",
+   "list": 2,
+   "check": "attention"
+  },
+  {
+   "id": "1044",
+   "file": "1044gs.jpg",
+   "list": 3,
+   "check": "attention"
+  },
+  {
+   "id": "511",
+   "file": "511gs.jpg",
+   "list": 1,
+   "check": "attention"
+  },
+  {
+   "id": "511",
+   "file": "511gs.jpg",
+   "list": 2,
+   "check": "attention"
+  },
+  {
+   "id": "511",
+   "file": "511gs.jpg",
+   "list": 3,
+   "check": "attention"
+  },
+  {
+   "id": "403",
+   "file": "403gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "403",
+   "file": "403gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "403",
+   "file": "403gs.jpg",
+   "list": 3,
+   "check": ""
+  },
+  {
+   "id": "307",
+   "file": "307gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "307",
+   "file": "307gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "307",
+   "file": "307gs.jpg",
+   "list": 3,
+   "check": ""
+  },
+  {
+   "id": "052",
+   "file": "052gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "052",
+   "file": "052gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "052",
+   "file": "052gs.jpg",
+   "list": 3,
+   "check": ""
+  },
+  {
+   "id": "299",
+   "file": "299gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "299",
+   "file": "299gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "299",
+   "file": "299gs.jpg",
+   "list": 3,
+   "check": ""
+  },
+  {
+   "id": "031",
+   "file": "031gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "031",
+   "file": "031gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "031",
+   "file": "031gs.jpg",
+   "list": 3,
+   "check": ""
+  },
+  {
+   "id": "035",
+   "file": "035gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "035",
+   "file": "035gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "035",
+   "file": "035gs.jpg",
+   "list": 3,
+   "check": ""
+  },
+  {
+   "id": "036",
+   "file": "036gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "036",
+   "file": "036gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "036",
+   "file": "036gs.jpg",
+   "list": 3,
+   "check": ""
+  },
+  {
+   "id": "319",
+   "file": "319gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "319",
+   "file": "319gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "319",
+   "file": "319gs.jpg",
+   "list": 3,
+   "check": ""
+  },
+  {
+   "id": "312",
+   "file": "312gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "312",
+   "file": "312gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "312",
+   "file": "312gs.jpg",
+   "list": 3,
+   "check": ""
+  },
+  {
+   "id": "522",
+   "file": "522gs.jpg",
+   "list": 1,
+   "check": ""
+  },
+  {
+   "id": "522",
+   "file": "522gs.jpg",
+   "list": 2,
+   "check": ""
+  },
+  {
+   "id": "522",
+   "file": "522gs.jpg",
+   "list": 3,
+   "check": ""
+  }
+ ]
+}

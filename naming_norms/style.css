@@ -1,0 +1,99 @@
+:root{
+  --bg:#f4f5f7; --card:#fff; --ink:#1c1e21; --muted:#6b7280;
+  --line:#d9dce1; --accent:#2b6cb0; --accent-dark:#22548a; --err:#b42318;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:16px/1.55 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.screen{display:none; width:100%; max-width:760px}
+.screen.active{display:block}
+.hidden{display:none !important}
+
+.card{
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  padding:32px 36px; box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+h1{font-size:22px; margin:0 0 18px}
+p{margin:0 0 14px}
+ul{margin:0 0 14px 20px; padding:0}
+li{margin-bottom:6px}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.err{color:var(--err); min-height:20px; margin:6px 0 0; font-size:14px}
+
+.scrollbox{
+  max-height:260px; overflow-y:auto; border:1px solid var(--line);
+  border-radius:8px; padding:16px; background:#fafbfc; margin-bottom:18px;
+}
+.checkline{display:flex; gap:10px; align-items:flex-start; margin-bottom:20px; cursor:pointer}
+.checkline input{margin-top:4px; width:17px; height:17px}
+
+.field{margin-bottom:16px}
+.field label{display:block; margin-bottom:6px; font-size:15px}
+input[type=text],input[type=number],select,textarea{
+  width:100%; padding:10px 12px; font-size:16px; font-family:inherit;
+  border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink);
+}
+input[type=text]:focus,input[type=number]:focus,select:focus{
+  outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(43,108,176,.12);
+}
+textarea{resize:vertical; font-family:ui-monospace,Consolas,monospace; font-size:12px}
+
+button{
+  font:inherit; padding:11px 26px; border-radius:8px; cursor:pointer; border:1px solid transparent;
+}
+button.primary{background:var(--accent); color:#fff}
+button.primary:hover:not(:disabled){background:var(--accent-dark)}
+button.primary:disabled{background:#c4cbd4; cursor:not-allowed}
+button.secondary{background:#fff; border-color:var(--line); color:var(--ink)}
+
+/* ---------- проба ---------- */
+.trial-wrap{
+  background:var(--card); border:1px solid var(--line); border-radius:12px;
+  padding:22px 32px 28px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+.progress{height:4px; background:#e8eaee; border-radius:2px; overflow:hidden; margin-bottom:8px}
+.progress-bar{height:100%; width:0; background:var(--accent); transition:width .25s}
+.trial-counter{font-size:13px; color:var(--muted); margin:0 0 14px}
+
+.stim-box{
+  min-height:360px; display:flex; align-items:center; justify-content:center;
+  background:#fff; border:1px solid var(--line); border-radius:8px; margin-bottom:20px;
+}
+#stim-img{max-width:100%; max-height:350px; display:block}
+.stim-text{
+  font-size:20px; line-height:1.5; padding:40px 32px; margin:0; color:var(--ink);
+}
+
+.answer{max-width:420px; margin:0 auto 18px; text-align:left}
+.answer label{display:block; margin-bottom:6px; font-size:15px}
+
+.ease{max-width:460px; margin:0 auto 20px}
+.ease-q{font-size:15px; margin-bottom:10px}
+.scale{display:flex; gap:8px; justify-content:center}
+.scale button{
+  width:46px; height:46px; padding:0; border:1px solid var(--line);
+  background:#fff; border-radius:8px; font-size:16px;
+}
+.scale button:hover{border-color:var(--accent)}
+.scale button.sel{background:var(--accent); color:#fff; border-color:var(--accent)}
+.scale-labels{
+  display:flex; justify-content:space-between; margin-top:6px;
+  font-size:12px; color:var(--muted); padding:0 2px;
+}
+
+.code-box{
+  font:22px/1.4 ui-monospace,Consolas,monospace; letter-spacing:2px; text-align:center;
+  background:#f0f4f9; border:1px dashed var(--accent); border-radius:8px;
+  padding:16px; margin:14px 0 18px; user-select:all;
+}
+
+#debug{
+  position:fixed; right:8px; bottom:8px; background:#111; color:#0f0; opacity:.85;
+  font:11px/1.4 ui-monospace,Consolas,monospace; padding:8px 10px; border-radius:6px;
+  max-width:320px; max-height:180px; overflow:auto; white-space:pre-wrap; z-index:99;
+}
