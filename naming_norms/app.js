@@ -375,7 +375,9 @@ function wire() {
   $("btn-demo").addEventListener("click", () => {
     const age = parseInt($("demo-age").value, 10);
     const sex = $("demo-sex").value, lang = $("demo-lang").value;
-    if (!age || age < 16 || age > 99) { $("demo-err").textContent = "Укажите возраст (16–99)."; return; }
+    // 18–45 — тот же диапазон, что в фильтрах площадки и в тексте согласия.
+    // Расхождение между ними было бы противоречием в собственных документах.
+    if (!age || age < 18 || age > 45) { $("demo-err").textContent = "В исследовании участвуют люди от 18 до 45 лет."; return; }
     if (!sex)  { $("demo-err").textContent = "Укажите пол."; return; }
     if (!lang) { $("demo-err").textContent = "Укажите, родной ли для вас русский язык."; return; }
     S.demo = { age: age, sex: sex, native_ru: lang };
