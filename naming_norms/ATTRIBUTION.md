@@ -3,7 +3,7 @@
 Репозиторий с заданием публичный (этого требует GitHub Pages), поэтому изображения
 в папках `img/` и `train/` фактически публикуются. Ниже — их происхождение и условия.
 
-## Стимулы из THINGS-Mooney (74 изображения)
+## Стимулы из THINGS-Mooney (64 изображения)
 
 Linde-Domingo, J.\*, Ortiz-Tudela, J.\*, Völler, J., & González-García, C. (2025).
 THINGS-Mooney database (v1.1). Zenodo. https://doi.org/10.5281/zenodo.15340222
@@ -15,7 +15,7 @@ Hebart, M. N., et al. (2019). THINGS: A database of 1,854 object concepts and mo
 Stoinski, L. M., Perkuhn, J., & Hebart, M. N. (2024). THINGSplus: New norms and metadata
 for the THINGS database. Behavior Research Methods, 56, 1583–1603.
 
-## Стимулы и якоря из базы Van de Cruys (20 + 12 изображений)
+## Стимулы и якоря из базы Van de Cruys (18 + 12 изображений)
 
 Van de Cruys, S., Damiano, C., Boddez, Y., Król, M., Goetschalckx, L., & Wagemans, J. (2021).
 Visual affects: Linking curiosity, Aha-Erlebnis, and memory through information gain.
