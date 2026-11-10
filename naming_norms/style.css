@@ -91,11 +91,19 @@ button.secondary{background:#fff; border-color:var(--line); color:var(--ink)}
   max-width:320px; max-height:180px; overflow:auto; white-space:pre-wrap; z-index:99;
 }
 
+.scales{margin:0 auto}
+@media (min-width:900px){
+  .scales{display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; margin-bottom:20px}
+  .scales .ease{max-width:none; margin:0}
+  .scales .scale{gap:6px}
+  .scales .scale button{width:40px; height:40px}
+}
+
 /* невысокий экран */
 @media (max-height:760px) and (min-width:641px){
   body{padding:8px 24px}
   .stim-box{min-height:0; margin-bottom:12px}
-  #stim-img{max-height:36vh}
+  #stim-img{max-height:30vh}
   .answer{margin-bottom:10px}
   .ease{margin-bottom:12px}
 }

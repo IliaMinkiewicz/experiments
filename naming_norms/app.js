@@ -81,7 +81,7 @@ const folderList = () => PART === 1 ? LIST : PART * 10 + LIST;
 
 const S = {
   trials: [], idx: 0, rows: [], pending: [],
-  answer: "", ease: null, tOnset: 0, tFirstKey: 0,
+  answer: "", ease: null, typ: null, tOnset: 0, tFirstKey: 0,
   demo: {}, phase: "train", startedAt: new Date().toISOString()
 };
 
@@ -191,14 +191,14 @@ function preload(statusId, btnId) {
 }
 
 // шкала лёгкости
-function buildScale() {
-  const box = $("ease-scale");
+function buildScale(id, key) {
+  const box = $(id);
   box.innerHTML = "";
   for (let i = 1; i <= 7; i++) {
     const b = document.createElement("button");
     b.type = "button"; b.textContent = i; b.dataset.val = i;
     b.addEventListener("click", () => {
-      S.ease = i;
+      S[key] = i;
       box.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
       b.classList.add("sel");
       updateNext();
@@ -208,11 +208,12 @@ function buildScale() {
 }
 function clearScale() {
   S.ease = null;
-  $("ease-scale").querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+  S.typ = null;
+  document.querySelectorAll(".scale button").forEach(x => x.classList.remove("sel"));
 }
 function updateNext() {
   const txt = $("answer-input").value.trim();
-  $("btn-next").disabled = !(txt.length > 0 && S.ease !== null);
+  $("btn-next").disabled = !(txt.length > 0 && S.ease !== null && S.typ !== null);
 }
 
 // ход проб
@@ -243,6 +244,7 @@ function submitTrial() {
   const ans = $("answer-input").value.trim();
   if (!ans) { $("trial-err").textContent = "Напишите название."; return; }
   if (S.ease === null) { $("trial-err").textContent = "Оцените, насколько легко было подобрать одно слово."; return; }
+  if (S.typ === null) { $("trial-err").textContent = "Оцените, насколько нетипичным кажется изображение."; return; }
 
   const now = performance.now();
   const row = {
@@ -251,7 +253,7 @@ function submitTrial() {
     check: t.check || "",
     answer: ans, answer_raw_len: ans.length,
     latin: /[A-Za-z]/.test(ans) ? 1 : 0,
-    ease: S.ease,
+    ease: S.ease, typ: S.typ,
     rt_first_key: S.tFirstKey ? Math.round(S.tFirstKey - S.tOnset) : null,
     rt_submit: Math.round(now - S.tOnset),
     ts: new Date().toISOString()
@@ -446,6 +448,7 @@ function wire() {
     if (e.key === "Enter") {
       e.preventDefault();
       if (S.ease === null) $("ease-scale").querySelector("button").focus();
+      else if (S.typ === null) $("typ-scale").querySelector("button").focus();
       else submitTrial();
     }
   });
@@ -471,7 +474,8 @@ function wire() {
 
 // старт
 if (gateChecks()) {
-  buildScale();
+  buildScale("ease-scale", "ease");
+  buildScale("typ-scale", "typ");
   wire();
   if (AUTO && !PARTS.cur && !PARTS.next && PARTS.done.length) { show("screen-more"); return; }
   show("screen-loading");
