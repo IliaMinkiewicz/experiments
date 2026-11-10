@@ -1,11 +1,8 @@
-/* ============================================================
-   АПРОБАЦИЯ НАЗЫВАНИЙ — логика эксперимента
-   Зависимости: config.js, stimuli.json. Внешних библиотек нет.
-   ============================================================ */
+// Апробация называний
 (function () {
 "use strict";
 
-// ---------- утилиты ----------
+// утилиты
 const $ = (id) => document.getElementById(id);
 const show = (id) => {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
@@ -16,7 +13,6 @@ const log = (msg) => {
   const d = $("debug"); d.classList.remove("hidden");
   d.textContent += msg + "\n"; d.scrollTop = d.scrollHeight;
 };
-// генератор с сидом: одна и та же последовательность воспроизводима
 function mulberry32(a) {
   return function () {
     a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -40,17 +36,11 @@ function randCode(n) {
   return s;
 }
 
-// ---------- состояние ----------
+// состояние
 const params  = new URLSearchParams(location.search);
 const WORKER  = (params.get("w") || params.get("worker") || "").slice(0, 64);
 
-// Личность попытки закрепляется при первой загрузке и переживает перезагрузку страницы.
-// Без этого F5 на середине давал: новый код завершения (под ним лежала бы
-// только часть ответов), новый порядок карточек по новому сиду
-// (часть изображений показывается второй раз — испорченные ответы) и новый pid,
-// из-за которого verifyOnServer не находит уже отправленные порции.
-// Ключ привязан к исполнителю: если w не подставился, у всех анонимов он общий,
-// но это один браузер — один участник, а повторный заход закрыт.
+// pid, код и сид сохраняются при перезагрузке
 const SESS_KEY = "naming_session_" + (WORKER || "anon");
 const SESSION  = (function () {
   try {
@@ -68,10 +58,7 @@ const SESSION  = (function () {
 const PID  = SESSION.pid;
 const SEED = SESSION.seed;
 
-// Номер списка приходит не из ссылки, а назначается на старте: ссылка одна на всех.
-// Пройдя список, участник может по желанию пройти остальные. PARTS хранит пройденные
-// списки, текущий список и анкету, поэтому перезагрузка продолжает ту же часть.
-// Явный ?list=1..3 оставлен для тестирования.
+// список назначается на старте; ?list=1..3 для проверки
 const LIST_PARAM = (params.get("list") || "auto").toLowerCase();
 const AUTO       = LIST_PARAM === "auto";
 const PARTS_KEY  = "naming_parts_" + (WORKER || "anon");
@@ -84,13 +71,12 @@ const PARTS      = (function () {
 })();
 const saveParts  = () => { try { localStorage.setItem(PARTS_KEY, JSON.stringify(PARTS)); } catch (e) {} };
 const PART       = AUTO ? PARTS.done.length + 1 : 1;
-// у каждой части свой код: ключ склейки данных (pid, code, pos) не должен совпасть между частями
+// у каждой части свой код
 const CODE       = PART === 1 ? SESSION.code : SESSION.code + "-P" + PART;
 const TOUCH      = window.matchMedia("(pointer: coarse)").matches;
 let LIST  = 0;
 let STORE = "";
-// Папка в репозитории данных: L1–L3 — первая часть, по ним считается заполненность.
-// Вторая и третья части лежат в L21, L32 и т. п. (часть, затем список) и в счёт не идут.
+// данные: L1–L3 первая часть, L21–L33 следующие
 const folderList = () => PART === 1 ? LIST : PART * 10 + LIST;
 
 const S = {
@@ -99,7 +85,7 @@ const S = {
   demo: {}, phase: "train", startedAt: new Date().toISOString()
 };
 
-// ---------- проверки на входе ----------
+// проверки на входе
 function gateChecks() {
   if (!CONFIG.enabled) { show("screen-closed"); return false; }
 
@@ -109,13 +95,12 @@ function gateChecks() {
   if (mobileUA && !CONFIG.allowMobile) { show("screen-device"); return false; }
 
   if (window.innerWidth < CONFIG.minWidth) {
-    // Узкое окно — не приговор: человек за компьютером просто не развернул браузер.
     show("screen-device");
     $("device-hint").classList.remove("hidden");
     const onResize = () => {
       if (window.innerWidth >= CONFIG.minWidth) {
         window.removeEventListener("resize", onResize);
-        location.reload();   // безопасно: pid, код и сид закреплены в localStorage
+        location.reload();
       }
     };
     window.addEventListener("resize", onResize);
@@ -124,14 +109,11 @@ function gateChecks() {
   return true;
 }
 
-// ---------- назначение списка ----------
-// Порядок: явный номер в ссылке -> уже назначенный этому исполнителю -> самый пустой.
-// Назначение запоминается в localStorage, чтобы перезагрузка страницы не перебросила
-// человека на другой список: иначе он увидел бы часть картинок дважды.
+// назначение списка
 function resolveList() {
   const direct = parseInt(LIST_PARAM, 10);
   if ([1, 2, 3].includes(direct)) return Promise.resolve(direct);
-  if (LIST_PARAM !== "auto") return Promise.resolve(0);   // мусор в параметре
+  if (LIST_PARAM !== "auto") return Promise.resolve(0);
 
   if (PARTS.cur) { log("список закреплён ранее: " + PARTS.cur); return Promise.resolve(PARTS.cur); }
 
@@ -145,14 +127,11 @@ function resolveList() {
         const n = (j.counts && j.counts["L" + L]) || 0;
         if (n < min) { min = n; best = [L]; } else if (n === min) best.push(L);
       });
-      // при равенстве — жребий: иначе несколько человек, стартовавших одновременно,
-      // дружно уйдут в один и тот же список
       const L = best[Math.floor(Math.random() * best.length)];
       log("наполненность " + JSON.stringify(j.counts) + " -> список " + L);
       return L;
     })
     .catch(err => {
-      // сервер недоступен: отдать случайный список, но участника не терять
       log("counts не ответил (" + err + "), список выбран жребием");
       return left[Math.floor(Math.random() * left.length)];
     })
@@ -164,7 +143,7 @@ function resolveList() {
     });
 }
 
-// ---------- загрузка стимулов ----------
+// загрузка стимулов
 let STIM = null;
 function loadStimuli() {
   return fetch("stimuli.json", { cache: "no-store" })
@@ -175,8 +154,7 @@ function loadStimuli() {
 function buildTrials() {
   const rnd = mulberry32(SEED);
 
-  // Во второй и третьей частях тренировки нет, а якоря не показываются:
-  // это те же самые изображения, что и в первой части.
+  // во второй и третьей частях без тренировки и якорей
   const train = PART > 1 ? [] : STIM.train.map((t, i) => ({
     kind: "train", pos: i + 1, id: t.id, file: "train/" + t.file
   }));
@@ -212,7 +190,7 @@ function preload(statusId, btnId) {
   });
 }
 
-// ---------- шкала лёгкости ----------
+// шкала лёгкости
 function buildScale() {
   const box = $("ease-scale");
   box.innerHTML = "";
@@ -237,7 +215,7 @@ function updateNext() {
   $("btn-next").disabled = !(txt.length > 0 && S.ease !== null);
 }
 
-// ---------- ход проб ----------
+// ход проб
 function renderTrial() {
   const t = S.trials[S.idx];
   S.phase = t.kind === "train" ? "train" : "main";
@@ -254,7 +232,6 @@ function renderTrial() {
   $("trial-err").textContent = "";
   clearScale();
   updateNext();
-  // на телефоне автофокус поднимал бы клавиатуру и закрывал ею изображение
   if (!TOUCH) $("answer-input").focus();
 
   S.tOnset = performance.now();
@@ -292,7 +269,7 @@ function submitTrial() {
   else setTimeout(renderTrial, 0);
 }
 
-// ---------- сохранение ----------
+// сохранение
 function saveLocal() {
   try {
     localStorage.setItem(STORE, JSON.stringify({
@@ -305,16 +282,13 @@ function saveLocal() {
 function post(payload) {
   return fetch(CONFIG.uploadUrl, {
     method: "POST",
-    keepalive: true,                     // порция дойдёт, даже если вкладку закроют сразу после финала
-    // text/plain — «простой» запрос, без preflight: Apps Script иначе отвечает ошибкой
+    keepalive: true,
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(payload)
   }).then(r => {
     if (!r.ok) throw new Error("http " + r.status);
     return r.text();
   }).then(txt => {
-    // ВАЖНО: без этой проверки любая страница-заглушка (404, «развёртывание не найдено»)
-    // считалась бы успешной отправкой, и данные молча терялись бы.
     let j;
     try { j = JSON.parse(txt); }
     catch (e) { throw new Error("ответ не JSON: " + String(txt).slice(0, 60)); }
@@ -323,8 +297,6 @@ function post(payload) {
   });
 }
 
-// Независимая проверка: сколько порций реально лежит на сервере.
-// Нужна на случай, когда ответ прочитать не удалось, а данные всё-таки дошли.
 function verifyOnServer() {
   const u = CONFIG.uploadUrl + "?action=verify&secret=" + encodeURIComponent(CONFIG.secret) +
             "&pid=" + encodeURIComponent(PID) + "&list=" + folderList();
@@ -343,16 +315,11 @@ function flushChunk(isFinal) {
   };
   return post(payload)
     .then(res => {
-      // ВАЖНО: логирование обёрнуто в try. Раньше здесь вызывался txt.slice() на объекте,
-      // который возвращает post(); TypeError ловился соседним .catch, и успешно
-      // отправленная порция возвращалась в очередь. Очередь не опустошалась никогда:
-      // каждая следующая отправка везла всё с начала, объём рос квадратично,
-      // а участник всё равно видел «Данные отправлены».
       try { log("отправлено " + batch.length + " → " + ((res && res.file) || "ok")); } catch (e) {}
       saveLocal();
       return true;
     })
-    .catch(err => {                      // не потерять: вернуть в очередь
+    .catch(err => {
       S.pending = batch.concat(S.pending);
       saveLocal();
       try { log("ошибка отправки: " + err); } catch (e) {}
@@ -369,8 +336,7 @@ function sessionMeta() {
   };
 }
 
-// ---------- завершение ----------
-// Часть считается пройденной, только когда данные дошли: до этого перезагрузка повторит отправку.
+// завершение
 function partSent() {
   $("upload-status").textContent = "Данные отправлены.";
   if (!AUTO) return;
@@ -407,8 +373,6 @@ function finish() {
     }
     tries++;
     if (tries < 4) { setTimeout(attempt, 1500 * tries); return; }
-    // последняя попытка: спросить сервер напрямую — вдруг данные дошли,
-    // а ответ не удалось прочитать
     verifyOnServer().then(chunks => {
       if (chunks >= expected) {
         partSent();
@@ -422,9 +386,7 @@ function finish() {
   attempt();
 }
 
-// ---------- возврат к начатому заданию ----------
-// Телефон часто выгружает вкладку при переключении приложений. Продолжаем с того же места:
-// порядок карточек воспроизводится по сиду, и уже виденные изображения не показываются снова.
+// продолжение после перезагрузки
 function resumeRun() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) {}
@@ -441,7 +403,7 @@ function resumeRun() {
   return true;
 }
 
-// ---------- обработчики ----------
+// обработчики
 function wire() {
   $("consent-check").addEventListener("change", e => {
     $("btn-consent").disabled = !e.target.checked;
@@ -451,7 +413,6 @@ function wire() {
   $("btn-demo").addEventListener("click", () => {
     const age = parseInt($("demo-age").value, 10);
     const sex = $("demo-sex").value, lang = $("demo-lang").value;
-    // 18–45 — тот же диапазон, что в тексте согласия.
     if (!age || age < 18 || age > 45) { $("demo-err").textContent = "В исследовании участвуют люди от 18 до 45 лет."; return; }
     if (!sex)  { $("demo-err").textContent = "Укажите пол."; return; }
     if (!lang) { $("demo-err").textContent = "Укажите, родной ли для вас русский язык."; return; }
@@ -487,7 +448,6 @@ function wire() {
     try { document.execCommand("copy"); $("btn-copy").textContent = "Скопировано"; } catch (e) {}
   });
 
-  // страховка: попытка дослать при закрытии вкладки
   window.addEventListener("beforeunload", e => {
     if (S.pending.length && navigator.sendBeacon) {
       navigator.sendBeacon(CONFIG.uploadUrl, new Blob([JSON.stringify({
@@ -501,11 +461,10 @@ function wire() {
   });
 }
 
-// ---------- старт ----------
+// старт
 if (gateChecks()) {
   buildScale();
   wire();
-  // вернулся после пройденной части: новая начинается только по его желанию
   if (AUTO && !PARTS.cur && !PARTS.next && PARTS.done.length) { show("screen-more"); return; }
   show("screen-loading");
   resolveList()
@@ -514,7 +473,7 @@ if (gateChecks()) {
         show("screen-closed");
         $("screen-closed").querySelector("p").textContent =
           "Ссылка открыта неправильно. Вернитесь к заданию и перейдите по ссылке из него.";
-        return null;                      // дальше по цепочке не идём
+        return null;
       }
       LIST  = L;
       STORE = "naming_" + PID + "_L" + LIST;

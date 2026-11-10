@@ -51,7 +51,7 @@ button.primary:hover:not(:disabled){background:var(--accent-dark)}
 button.primary:disabled{background:#c4cbd4; cursor:not-allowed}
 button.secondary{background:#fff; border-color:var(--line); color:var(--ink)}
 
-/* ---------- проба ---------- */
+/* проба */
 .trial-wrap{
   background:var(--card); border:1px solid var(--line); border-radius:12px;
   padding:22px 32px 28px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,.06);
@@ -91,7 +91,7 @@ button.secondary{background:#fff; border-color:var(--line); color:var(--ink)}
   max-width:320px; max-height:180px; overflow:auto; white-space:pre-wrap; z-index:99;
 }
 
-/* ---------- невысокий экран ноутбука: карточка целиком без прокрутки ---------- */
+/* невысокий экран */
 @media (max-height:760px) and (min-width:641px){
   body{padding:8px 24px}
   .stim-box{min-height:0; margin-bottom:12px}
@@ -100,7 +100,7 @@ button.secondary{background:#fff; border-color:var(--line); color:var(--ink)}
   .ease{margin-bottom:12px}
 }
 
-/* ---------- телефон ---------- */
+/* телефон */
 @media (max-width:640px){
   body{align-items:flex-start; padding:8px}
   .card{padding:20px 16px}
