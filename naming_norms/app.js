@@ -283,6 +283,7 @@ function post(payload) {
   return fetch(CONFIG.uploadUrl, {
     method: "POST",
     keepalive: true,
+    signal: window.AbortSignal && AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined,
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(payload)
   }).then(r => {
@@ -305,8 +306,15 @@ function verifyOnServer() {
                  .catch(() => 0);
 }
 
+// порции уходят по одной: одновременные записи в репозиторий конфликтуют
+let queue = Promise.resolve();
 function flushChunk(isFinal) {
-  if (!S.pending.length && !isFinal) return Promise.resolve();
+  queue = queue.then(() => sendChunk(isFinal));
+  return queue;
+}
+
+function sendChunk(isFinal) {
+  if (!S.pending.length && !isFinal) return Promise.resolve(true);
   const batch = S.pending.slice();
   S.pending = [];
   const payload = {
