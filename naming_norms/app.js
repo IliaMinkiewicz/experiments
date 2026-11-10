@@ -74,6 +74,9 @@ const PART       = AUTO ? PARTS.done.length + 1 : 1;
 // у каждой части свой код
 const CODE       = PART === 1 ? SESSION.code : SESSION.code + "-P" + PART;
 const TOUCH      = window.matchMedia("(pointer: coarse)").matches;
+// картинки с CDN; если не загрузилась, берётся копия с этого же сайта
+const LOCAL      = new Set();
+const src        = f => (CONFIG.imgBase && !LOCAL.has(f) ? CONFIG.imgBase : "") + f;
 let LIST  = 0;
 let STORE = "";
 // данные: L1–L3 первая часть, L21–L33 следующие
@@ -179,11 +182,17 @@ function preload(statusId, btnId) {
   const st = $(statusId || "preload-status");
   return Promise.all(urls.map(u => new Promise(res => {
     const im = new Image();
-    im.onload = im.onerror = () => {
+    const ready = () => {
       done++; st.textContent = "Загрузка изображений… " + done + " из " + urls.length;
       res();
     };
-    im.src = u;
+    im.onload = ready;
+    im.onerror = () => {
+      if (LOCAL.has(u) || !CONFIG.imgBase) return ready();
+      LOCAL.add(u);
+      im.src = u;
+    };
+    im.src = src(u);
   }))).then(() => {
     st.textContent = "Изображения загружены.";
     $(btnId || "btn-instr").disabled = false;
@@ -221,7 +230,7 @@ function renderTrial() {
   const t = S.trials[S.idx];
   S.phase = t.kind === "train" ? "train" : "main";
 
-  $("stim-img").src = t.file;
+  $("stim-img").src = src(t.file);
 
   const total = S.nTrain + S.nMain;
   $("progress-bar").style.width = (100 * S.idx / total) + "%";
@@ -453,6 +462,10 @@ function wire() {
     }
   });
   $("btn-next").addEventListener("click", submitTrial);
+  $("stim-img").addEventListener("error", () => {
+    const f = S.trials[S.idx] && S.trials[S.idx].file;
+    if (f && !LOCAL.has(f)) { LOCAL.add(f); $("stim-img").src = f; }
+  });
 
   $("btn-copy").addEventListener("click", () => {
     $("manual-data").select();
