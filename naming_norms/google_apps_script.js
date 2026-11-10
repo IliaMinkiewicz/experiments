@@ -50,26 +50,35 @@ function doGet(e) {
 
   if (p.action === "ping") return json({ ok: true, accepting: ACCEPTING });
 
-  if (p.action === "counts") {              // завершившие по спискам (файлы __final)
+  if (p.action === "counts") {              // законченные части по спискам, включая вторые и третьи
+    const done = { 1: {}, 2: {}, 3: {} };
+    listData().forEach(f => {
+      const m = f.match(/\/L(\d+)\/([^\/]+?)__([^\/]+?)__[^\/]*__final\.json$/);
+      const L = m ? Number(m[1]) % 10 : 0;
+      if (done[L]) done[L][m[2] + "__" + m[3]] = 1;
+    });
     const counts = {};
-    for (let L = 1; L <= 3; L++) {
-      const pids = {};
-      listFolder(FOLDER + "/L" + L).forEach(f => {
-        if (f.indexOf("__final") !== -1) pids[f.split("__")[0]] = 1;
-      });
-      counts["L" + L] = Object.keys(pids).length;
-    }
+    for (let L = 1; L <= 3; L++) counts["L" + L] = Object.keys(done[L]).length;
     return json({ ok: true, counts: counts });
   }
 
   if (p.action === "verify") {              // принятые порции участника
-    const list = String(parseInt(p.list, 10) || 0);
-    const pid  = sanitize(p.pid || "");
-    const files = listFolder(FOLDER + "/L" + list);
-    const mine  = files.filter(f => f.indexOf(pid + "__") === 0);
+    const pre  = FOLDER + "/L" + (parseInt(p.list, 10) || 0) + "/" + sanitize(p.pid || "") + "__";
+    const mine = listData().filter(f => f.indexOf(pre) === 0).map(f => f.split("/").pop());
     return json({ ok: true, chunks: mine.length, files: mine });
   }
   return json({ ok: false, error: "bad_action" });
+}
+
+// все файлы данных одним запросом: список папки через contents отдаёт не больше 1000
+function listData() {
+  const url = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME +
+              "/git/trees/" + BRANCH + "?recursive=1";
+  const res = UrlFetchApp.fetch(url, { headers: ghHeaders(), muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) return [];
+  return JSON.parse(res.getContentText()).tree
+    .filter(t => t.type === "blob" && t.path.indexOf(FOLDER + "/") === 0)
+    .map(t => t.path);
 }
 
 function doOptions() {
@@ -104,13 +113,6 @@ function putFile(path, content, message) {
   }
 }
 
-function listFolder(path) {
-  const url = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME +
-              "/contents/" + path + "?ref=" + BRANCH;
-  const res = UrlFetchApp.fetch(url, { headers: ghHeaders(), muteHttpExceptions: true });
-  if (res.getResponseCode() !== 200) return [];
-  return JSON.parse(res.getContentText()).map(f => f.name);
-}
 
 function sanitize(s) { return String(s).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64); }
 function json(o) {
