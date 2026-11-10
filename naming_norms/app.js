@@ -43,18 +43,55 @@ function randCode(n) {
 // ---------- состояние ----------
 const params  = new URLSearchParams(location.search);
 const WORKER  = (params.get("w") || params.get("worker") || "").slice(0, 64);
-const PID     = WORKER || ("anon_" + randCode(8));
-const CODE    = "NM-" + randCode(6);
-const SEED    = Math.floor(Math.random() * 1e9);
 
-// Номер списка приходит не из ссылки, а назначается на старте: площадке отдаётся
-// одно задание с ?list=auto, и оно выдаётся исполнителю ровно один раз. Так запрет
-// пересечения списков обеспечивается самой площадкой, без механики навыков.
+// Личность попытки закрепляется при первой загрузке и переживает перезагрузку страницы.
+// Без этого F5 на середине давал: новый код завершения (под ним лежала бы
+// только часть ответов), новый порядок карточек по новому сиду
+// (часть изображений показывается второй раз — испорченные ответы) и новый pid,
+// из-за которого verifyOnServer не находит уже отправленные порции.
+// Ключ привязан к исполнителю: если w не подставился, у всех анонимов он общий,
+// но это один браузер — один участник, а повторный заход закрыт.
+const SESS_KEY = "naming_session_" + (WORKER || "anon");
+const SESSION  = (function () {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SESS_KEY) || "null");
+    if (saved && saved.pid && saved.code && saved.seed) return saved;
+  } catch (e) {}
+  const fresh = {
+    pid:  WORKER || ("anon_" + randCode(8)),
+    code: "NM-" + randCode(6),
+    seed: Math.floor(Math.random() * 1e9)
+  };
+  try { localStorage.setItem(SESS_KEY, JSON.stringify(fresh)); } catch (e) {}
+  return fresh;
+})();
+const PID  = SESSION.pid;
+const SEED = SESSION.seed;
+
+// Номер списка приходит не из ссылки, а назначается на старте: ссылка одна на всех.
+// Пройдя список, участник может по желанию пройти остальные. PARTS хранит пройденные
+// списки, текущий список и анкету, поэтому перезагрузка продолжает ту же часть.
 // Явный ?list=1..3 оставлен для тестирования.
 const LIST_PARAM = (params.get("list") || "auto").toLowerCase();
-const ASSIGN_KEY = "naming_assigned_" + (WORKER || "anon");
+const AUTO       = LIST_PARAM === "auto";
+const PARTS_KEY  = "naming_parts_" + (WORKER || "anon");
+const PARTS      = (function () {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PARTS_KEY) || "null");
+    if (saved && Array.isArray(saved.done)) return saved;
+  } catch (e) {}
+  return { done: [], cur: 0, next: false, demo: null };
+})();
+const saveParts  = () => { try { localStorage.setItem(PARTS_KEY, JSON.stringify(PARTS)); } catch (e) {} };
+const PART       = AUTO ? PARTS.done.length + 1 : 1;
+// у каждой части свой код: ключ склейки данных (pid, code, pos) не должен совпасть между частями
+const CODE       = PART === 1 ? SESSION.code : SESSION.code + "-P" + PART;
+const TOUCH      = window.matchMedia("(pointer: coarse)").matches;
 let LIST  = 0;
 let STORE = "";
+// Папка в репозитории данных: L1–L3 — первая часть, по ним считается заполненность.
+// Вторая и третья части лежат в L21, L32 и т. п. (часть, затем список) и в счёт не идут.
+const folderList = () => PART === 1 ? LIST : PART * 10 + LIST;
 
 const S = {
   trials: [], idx: 0, rows: [], pending: [],
@@ -65,8 +102,25 @@ const S = {
 // ---------- проверки на входе ----------
 function gateChecks() {
   if (!CONFIG.enabled) { show("screen-closed"); return false; }
+
+  if (AUTO && !PARTS.cur && PARTS.done.length >= 3) { show("screen-already"); return false; }
+
   const mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|Mobile/i.test(navigator.userAgent);
-  if (mobileUA || window.innerWidth < CONFIG.minWidth) { show("screen-device"); return false; }
+  if (mobileUA && !CONFIG.allowMobile) { show("screen-device"); return false; }
+
+  if (window.innerWidth < CONFIG.minWidth) {
+    // Узкое окно — не приговор: человек за компьютером просто не развернул браузер.
+    show("screen-device");
+    $("device-hint").classList.remove("hidden");
+    const onResize = () => {
+      if (window.innerWidth >= CONFIG.minWidth) {
+        window.removeEventListener("resize", onResize);
+        location.reload();   // безопасно: pid, код и сид закреплены в localStorage
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return false;
+  }
   return true;
 }
 
@@ -79,15 +133,15 @@ function resolveList() {
   if ([1, 2, 3].includes(direct)) return Promise.resolve(direct);
   if (LIST_PARAM !== "auto") return Promise.resolve(0);   // мусор в параметре
 
-  const pinned = parseInt(localStorage.getItem(ASSIGN_KEY) || "", 10);
-  if ([1, 2, 3].includes(pinned)) { log("список закреплён ранее: " + pinned); return Promise.resolve(pinned); }
+  if (PARTS.cur) { log("список закреплён ранее: " + PARTS.cur); return Promise.resolve(PARTS.cur); }
 
+  const left = [1, 2, 3].filter(L => !PARTS.done.includes(L));
   return fetch(CONFIG.uploadUrl + "?action=counts&secret=" + encodeURIComponent(CONFIG.secret))
     .then(r => r.json())
     .then(j => {
       if (!j || !j.ok) throw new Error(j && j.error || "counts");
       let min = Infinity, best = [];
-      [1, 2, 3].forEach(L => {
+      left.forEach(L => {
         const n = (j.counts && j.counts["L" + L]) || 0;
         if (n < min) { min = n; best = [L]; } else if (n === min) best.push(L);
       });
@@ -100,10 +154,12 @@ function resolveList() {
     .catch(err => {
       // сервер недоступен: отдать случайный список, но участника не терять
       log("counts не ответил (" + err + "), список выбран жребием");
-      return 1 + Math.floor(Math.random() * 3);
+      return left[Math.floor(Math.random() * left.length)];
     })
     .then(L => {
-      try { localStorage.setItem(ASSIGN_KEY, String(L)); } catch (e) {}
+      PARTS.cur = L;
+      PARTS.next = false;
+      saveParts();
       return L;
     });
 }
@@ -119,28 +175,18 @@ function loadStimuli() {
 function buildTrials() {
   const rnd = mulberry32(SEED);
 
-  const train = STIM.train.map((t, i) => ({
-    kind: "train", pos: i + 1, id: t.id, file: "train/" + t.file, text: null
+  // Во второй и третьей частях тренировки нет, а якоря не показываются:
+  // это те же самые изображения, что и в первой части.
+  const train = PART > 1 ? [] : STIM.train.map((t, i) => ({
+    kind: "train", pos: i + 1, id: t.id, file: "train/" + t.file
   }));
 
   const main = STIM.items
-    .filter(it => it.list === LIST)
-    .map(it => ({ kind: "main", id: it.id, file: "img/" + it.file, text: null,
+    .filter(it => it.list === LIST && !(PART > 1 && it.id[0] === "A"))
+    .map(it => ({ kind: "main", id: it.id, file: "img/" + it.file,
                   check: it.check || "" }));
 
-  // две прямые проверки внимания — вставляются в случайные позиции второй и третьей четверти
-  const checks = [
-    { kind: "check", id: "check_stol", file: null, expect: "стол",
-      text: "Это проверка внимания. Не описывайте картинку — просто напишите в поле ниже слово «стол»." },
-    { kind: "check", id: "check_dom", file: null, expect: "дом",
-      text: "Это проверка внимания. Не описывайте картинку — просто напишите в поле ниже слово «дом»." }
-  ];
-
-  let seq = shuffle(main, rnd);
-  const p1 = Math.floor(seq.length * 0.30) + Math.floor(rnd() * 5);
-  const p2 = Math.floor(seq.length * 0.70) + Math.floor(rnd() * 5);
-  seq.splice(p1, 0, checks[0]);
-  seq.splice(p2, 0, checks[1]);
+  const seq = shuffle(main, rnd);
   seq.forEach((t, i) => { t.pos = i + 1; });
 
   S.trials = train.concat(seq);
@@ -149,10 +195,10 @@ function buildTrials() {
   log("список " + LIST + ": " + S.nMain + " карточек + " + S.nTrain + " тренировочных");
 }
 
-function preload() {
+function preload(statusId, btnId) {
   const urls = S.trials.filter(t => t.file).map(t => t.file);
   let done = 0;
-  const st = $("preload-status");
+  const st = $(statusId || "preload-status");
   return Promise.all(urls.map(u => new Promise(res => {
     const im = new Image();
     im.onload = im.onerror = () => {
@@ -162,7 +208,7 @@ function preload() {
     im.src = u;
   }))).then(() => {
     st.textContent = "Изображения загружены.";
-    $("btn-instr").disabled = false;
+    $(btnId || "btn-instr").disabled = false;
   });
 }
 
@@ -196,13 +242,7 @@ function renderTrial() {
   const t = S.trials[S.idx];
   S.phase = t.kind === "train" ? "train" : "main";
 
-  const img = $("stim-img"), txt = $("stim-text");
-  if (t.file) {
-    img.src = t.file; img.classList.remove("hidden"); txt.textContent = ""; txt.classList.add("hidden");
-  } else {
-    img.removeAttribute("src"); img.classList.add("hidden");
-    txt.textContent = t.text; txt.classList.remove("hidden");
-  }
+  $("stim-img").src = t.file;
 
   const total = S.nTrain + S.nMain;
   $("progress-bar").style.width = (100 * S.idx / total) + "%";
@@ -212,10 +252,10 @@ function renderTrial() {
 
   $("answer-input").value = "";
   $("trial-err").textContent = "";
-  $("train-feedback").textContent = "";
   clearScale();
   updateNext();
-  $("answer-input").focus();
+  // на телефоне автофокус поднимал бы клавиатуру и закрывал ею изображение
+  if (!TOUCH) $("answer-input").focus();
 
   S.tOnset = performance.now();
   S.tFirstKey = 0;
@@ -225,13 +265,13 @@ function submitTrial() {
   const t = S.trials[S.idx];
   const ans = $("answer-input").value.trim();
   if (!ans) { $("trial-err").textContent = "Напишите название."; return; }
-  if (S.ease === null) { $("trial-err").textContent = "Оцените, насколько легко было подобрать название."; return; }
+  if (S.ease === null) { $("trial-err").textContent = "Оцените, насколько легко было подобрать одно слово."; return; }
 
   const now = performance.now();
   const row = {
-    code: CODE, pid: PID, worker: WORKER, list: LIST, seed: SEED, version: CONFIG.version,
+    code: CODE, pid: PID, worker: WORKER, list: LIST, part: PART, seed: SEED, version: CONFIG.version,
     kind: t.kind, pos: t.pos, stim_id: t.id, file: t.file || "",
-    check: t.check || (t.kind === "check" ? "instruction" : ""),
+    check: t.check || "",
     answer: ans, answer_raw_len: ans.length,
     latin: /[A-Za-z]/.test(ans) ? 1 : 0,
     ease: S.ease,
@@ -240,9 +280,7 @@ function submitTrial() {
     ts: new Date().toISOString()
   };
 
-  if (t.kind === "train") {
-    $("train-feedback").textContent = "Ответ принят. Так и продолжайте.";
-  } else {
+  if (t.kind !== "train") {
     S.rows.push(row);
     S.pending.push(row);
     saveLocal();
@@ -251,7 +289,7 @@ function submitTrial() {
 
   S.idx++;
   if (S.idx >= S.trials.length) finish();
-  else setTimeout(renderTrial, t.kind === "train" ? 450 : 0);
+  else setTimeout(renderTrial, 0);
 }
 
 // ---------- сохранение ----------
@@ -259,7 +297,7 @@ function saveLocal() {
   try {
     localStorage.setItem(STORE, JSON.stringify({
       code: CODE, pid: PID, list: LIST, seed: SEED,
-      demo: S.demo, startedAt: S.startedAt, rows: S.rows
+      demo: S.demo, startedAt: S.startedAt, rows: S.rows, pending: S.pending
     }));
   } catch (e) { log("localStorage: " + e); }
 }
@@ -267,6 +305,7 @@ function saveLocal() {
 function post(payload) {
   return fetch(CONFIG.uploadUrl, {
     method: "POST",
+    keepalive: true,                     // порция дойдёт, даже если вкладку закроют сразу после финала
     // text/plain — «простой» запрос, без preflight: Apps Script иначе отвечает ошибкой
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify(payload)
@@ -288,7 +327,7 @@ function post(payload) {
 // Нужна на случай, когда ответ прочитать не удалось, а данные всё-таки дошли.
 function verifyOnServer() {
   const u = CONFIG.uploadUrl + "?action=verify&secret=" + encodeURIComponent(CONFIG.secret) +
-            "&pid=" + encodeURIComponent(PID) + "&list=" + LIST;
+            "&pid=" + encodeURIComponent(PID) + "&list=" + folderList();
   return fetch(u).then(r => r.json())
                  .then(j => (j && j.ok) ? (j.chunks || 0) : 0)
                  .catch(() => 0);
@@ -299,7 +338,7 @@ function flushChunk(isFinal) {
   const batch = S.pending.slice();
   S.pending = [];
   const payload = {
-    secret: CONFIG.secret, action: "save", pid: PID, list: LIST, code: CODE,
+    secret: CONFIG.secret, action: "save", pid: PID, list: folderList(), code: CODE,
     final: !!isFinal, meta: isFinal ? sessionMeta() : null, rows: batch
   };
   return post(payload)
@@ -310,10 +349,12 @@ function flushChunk(isFinal) {
       // каждая следующая отправка везла всё с начала, объём рос квадратично,
       // а участник всё равно видел «Данные отправлены».
       try { log("отправлено " + batch.length + " → " + ((res && res.file) || "ok")); } catch (e) {}
+      saveLocal();
       return true;
     })
     .catch(err => {                      // не потерять: вернуть в очередь
       S.pending = batch.concat(S.pending);
+      saveLocal();
       try { log("ошибка отправки: " + err); } catch (e) {}
       return false;
     });
@@ -321,17 +362,33 @@ function flushChunk(isFinal) {
 
 function sessionMeta() {
   return {
-    code: CODE, pid: PID, worker: WORKER, list: LIST, seed: SEED, version: CONFIG.version,
+    code: CODE, pid: PID, worker: WORKER, list: LIST, part: PART, seed: SEED, version: CONFIG.version,
     demo: S.demo, startedAt: S.startedAt, finishedAt: new Date().toISOString(),
-    nTrials: S.rows.length, ua: navigator.userAgent,
+    nTrials: S.rows.length, device: TOUCH ? "touch" : "desktop", ua: navigator.userAgent,
     screen: window.innerWidth + "x" + window.innerHeight
   };
 }
 
 // ---------- завершение ----------
+// Часть считается пройденной, только когда данные дошли: до этого перезагрузка повторит отправку.
+function partSent() {
+  $("upload-status").textContent = "Данные отправлены.";
+  if (!AUTO) return;
+  if (!PARTS.done.includes(LIST)) PARTS.done.push(LIST);
+  PARTS.cur = 0;
+  PARTS.next = false;
+  saveParts();
+  if (PARTS.done.length < 3) $("more-block").classList.remove("hidden");
+}
+
+function startNextPart() {
+  PARTS.next = true;
+  saveParts();
+  location.reload();
+}
+
 function finish() {
   show("screen-done");
-  $("completion-code").textContent = CODE;
   $("progress-bar").style.width = "100%";
 
   const expected = Math.max(1, Math.ceil(S.rows.length / CONFIG.chunkSize));
@@ -345,7 +402,7 @@ function finish() {
 
   const attempt = () => flushChunk(true).then(ok => {
     if (ok && !S.pending.length) {
-      $("upload-status").textContent = "Данные отправлены. Спасибо!";
+      partSent();
       return;
     }
     tries++;
@@ -354,7 +411,7 @@ function finish() {
     // а ответ не удалось прочитать
     verifyOnServer().then(chunks => {
       if (chunks >= expected) {
-        $("upload-status").textContent = "Данные отправлены. Спасибо!";
+        partSent();
         log("verify: на сервере " + chunks + " порций, ожидалось " + expected);
       } else {
         log("verify: на сервере " + chunks + " из " + expected);
@@ -363,6 +420,25 @@ function finish() {
     });
   });
   attempt();
+}
+
+// ---------- возврат к начатому заданию ----------
+// Телефон часто выгружает вкладку при переключении приложений. Продолжаем с того же места:
+// порядок карточек воспроизводится по сиду, и уже виденные изображения не показываются снова.
+function resumeRun() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) {}
+  if (!saved || saved.code !== CODE || !saved.rows || !saved.rows.length) return false;
+  S.rows = saved.rows;
+  S.pending = saved.pending || [];
+  S.demo = saved.demo || {};
+  S.startedAt = saved.startedAt || S.startedAt;
+  S.idx = S.nTrain + S.rows.length;
+  preload();
+  if (S.idx >= S.trials.length) { finish(); return true; }
+  show("screen-trial");
+  renderTrial();
+  return true;
 }
 
 // ---------- обработчики ----------
@@ -375,18 +451,22 @@ function wire() {
   $("btn-demo").addEventListener("click", () => {
     const age = parseInt($("demo-age").value, 10);
     const sex = $("demo-sex").value, lang = $("demo-lang").value;
-    // 18–45 — тот же диапазон, что в фильтрах площадки и в тексте согласия.
-    // Расхождение между ними было бы противоречием в собственных документах.
+    // 18–45 — тот же диапазон, что в тексте согласия.
     if (!age || age < 18 || age > 45) { $("demo-err").textContent = "В исследовании участвуют люди от 18 до 45 лет."; return; }
     if (!sex)  { $("demo-err").textContent = "Укажите пол."; return; }
     if (!lang) { $("demo-err").textContent = "Укажите, родной ли для вас русский язык."; return; }
     S.demo = { age: age, sex: sex, native_ru: lang };
+    PARTS.demo = S.demo;
+    saveParts();
     $("demo-err").textContent = "";
     show("screen-instr");
     preload();
   });
 
   $("btn-instr").addEventListener("click", () => { show("screen-trial"); renderTrial(); });
+  $("btn-part").addEventListener("click", () => { show("screen-trial"); renderTrial(); });
+  $("btn-more").addEventListener("click", startNextPart);
+  $("btn-more-return").addEventListener("click", startNextPart);
 
   const inp = $("answer-input");
   inp.addEventListener("input", () => {
@@ -411,7 +491,7 @@ function wire() {
   window.addEventListener("beforeunload", e => {
     if (S.pending.length && navigator.sendBeacon) {
       navigator.sendBeacon(CONFIG.uploadUrl, new Blob([JSON.stringify({
-        secret: CONFIG.secret, action: "save", pid: PID, list: LIST, code: CODE,
+        secret: CONFIG.secret, action: "save", pid: PID, list: folderList(), code: CODE,
         final: false, rows: S.pending
       })], { type: "text/plain;charset=utf-8" }));
     }
@@ -425,6 +505,8 @@ function wire() {
 if (gateChecks()) {
   buildScale();
   wire();
+  // вернулся после пройденной части: новая начинается только по его желанию
+  if (AUTO && !PARTS.cur && !PARTS.next && PARTS.done.length) { show("screen-more"); return; }
   show("screen-loading");
   resolveList()
     .then(L => {
@@ -436,7 +518,13 @@ if (gateChecks()) {
       }
       LIST  = L;
       STORE = "naming_" + PID + "_L" + LIST;
-      return loadStimuli().then(() => { buildTrials(); show("screen-consent"); });
+      if (PART > 1) S.demo = PARTS.demo || {};
+      return loadStimuli().then(() => {
+        buildTrials();
+        if (resumeRun()) return;
+        if (PART > 1) { show("screen-part"); preload("part-status", "btn-part"); }
+        else show("screen-consent");
+      });
     })
     .catch(err => {
       show("screen-closed");
