@@ -74,6 +74,10 @@ const PART       = AUTO ? PARTS.done.length + 1 : 1;
 // у каждой части свой код
 const CODE       = PART === 1 ? SESSION.code : SESSION.code + "-P" + PART;
 const TOUCH      = window.matchMedia("(pointer: coarse)").matches;
+// без хранилища браузера следующую часть не предлагаем: участник начал бы заново под новым ID
+const STORAGE_OK = (function () {
+  try { localStorage.setItem("naming_t", "1"); localStorage.removeItem("naming_t"); return true; } catch (e) { return false; }
+})();
 // картинки с CDN; если не загрузилась, берётся копия с этого же сайта
 const LOCAL      = new Set();
 const src        = f => (CONFIG.imgBase && !LOCAL.has(f) ? CONFIG.imgBase : "") + f;
@@ -324,22 +328,22 @@ function flushChunk(isFinal) {
   return queue;
 }
 
+// порция остаётся в pending, пока сервер не подтвердит запись
 function sendChunk(isFinal) {
-  if (!S.pending.length && !isFinal) return Promise.resolve(true);
+  if (!isFinal && S.pending.length < CONFIG.chunkSize) return Promise.resolve(true);
   const batch = S.pending.slice();
-  S.pending = [];
   const payload = {
     secret: CONFIG.secret, action: "save", pid: PID, list: folderList(), code: CODE,
     final: !!isFinal, meta: isFinal ? sessionMeta() : null, rows: batch
   };
   return post(payload)
     .then(res => {
+      S.pending = S.pending.slice(batch.length);
       try { log("отправлено " + batch.length + " → " + ((res && res.file) || "ok")); } catch (e) {}
       saveLocal();
       return true;
     })
     .catch(err => {
-      S.pending = batch.concat(S.pending);
       saveLocal();
       try { log("ошибка отправки: " + err); } catch (e) {}
       return false;
@@ -363,7 +367,7 @@ function partSent() {
   PARTS.cur = 0;
   PARTS.next = false;
   saveParts();
-  if (PARTS.done.length < 3) $("more-block").classList.remove("hidden");
+  if (PARTS.done.length < 3 && STORAGE_OK) $("more-block").classList.remove("hidden");
 }
 
 function startNextPart() {
