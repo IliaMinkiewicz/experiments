@@ -233,6 +233,8 @@ function updateNext() {
 function renderTrial() {
   const t = S.trials[S.idx];
   S.phase = t.kind === "train" ? "train" : "main";
+  $("train-badge").classList.toggle("hidden", t.kind !== "train");
+  document.querySelector(".trial-wrap").classList.toggle("is-train", t.kind === "train");
 
   $("stim-img").src = src(t.file);
 
@@ -281,6 +283,7 @@ function submitTrial() {
 
   S.idx++;
   if (S.idx >= S.trials.length) finish();
+  else if (t.kind === "train" && S.idx === S.nTrain) show("screen-train-done");
   else setTimeout(renderTrial, 0);
 }
 
@@ -449,6 +452,7 @@ function wire() {
 
   $("btn-instr").addEventListener("click", () => { show("screen-trial"); renderTrial(); });
   $("btn-part").addEventListener("click", () => { show("screen-trial"); renderTrial(); });
+  $("btn-main").addEventListener("click", () => { show("screen-trial"); renderTrial(); });
   $("btn-more").addEventListener("click", startNextPart);
   $("btn-more-return").addEventListener("click", startNextPart);
 

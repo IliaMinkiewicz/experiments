@@ -99,6 +99,11 @@ button.secondary{background:#fff; border-color:var(--line); color:var(--ink)}
   .scales .scale button{width:40px; height:40px}
 }
 
+/* тренировка */
+.trial-wrap.is-train{border-color:#e0b300; box-shadow:0 0 0 3px rgba(224,179,0,.18)}
+.train-badge{display:inline-block; margin:0 0 10px; padding:3px 14px; border-radius:999px;
+  background:#fff4cc; color:#6b4f00; border:1px solid #f0d27a; font-size:13px; font-weight:600}
+
 /* невысокий экран */
 @media (max-height:760px) and (min-width:641px){
   body{padding:8px 24px}
