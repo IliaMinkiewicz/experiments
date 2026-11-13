@@ -161,13 +161,14 @@ function loadStimuli() {
 function buildTrials() {
   const rnd = mulberry32(SEED);
 
-  // во второй и третьей частях без тренировки и якорей
+  // во второй и третьей частях без тренировки
   const train = PART > 1 ? [] : STIM.train.map((t, i) => ({
     kind: "train", pos: i + 1, id: t.id, file: "train/" + t.file
   }));
 
+  // якоря (A…) с версии 2.3 не показываются
   const main = STIM.items
-    .filter(it => it.list === LIST && !(PART > 1 && it.id[0] === "A"))
+    .filter(it => it.list === LIST && it.id[0] !== "A")
     .map(it => ({ kind: "main", id: it.id, file: "img/" + it.file,
                   check: it.check || "" }));
 
@@ -418,6 +419,13 @@ function resumeRun() {
   try { saved = JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) {}
   if (!saved || saved.code !== CODE || !saved.rows || !saved.rows.length) return false;
   S.rows = saved.rows;
+  // показанные карточки не повторяются, даже если состав листа изменился
+  const seen = new Set(S.rows.map(r => r.stim_id));
+  const rest = S.trials.slice(S.nTrain).filter(t => !seen.has(t.id));
+  rest.forEach((t, i) => { t.pos = S.rows.length + i + 1; });
+  S.trials = S.trials.slice(0, S.nTrain)
+    .concat(S.rows.map(r => ({ kind: "main", id: r.stim_id, pos: r.pos })), rest);
+  S.nMain = S.rows.length + rest.length;
   S.pending = saved.pending || [];
   S.demo = saved.demo || {};
   S.startedAt = saved.startedAt || S.startedAt;
