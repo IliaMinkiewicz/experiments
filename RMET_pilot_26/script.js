@@ -147,10 +147,12 @@ async function runTrial(t, s, b, i, practice) {
 }
 
 // Загрузка изображений: начинается сразу при открытии страницы, не больше IMAGE_PARALLEL
-// одновременно, до IMAGE_TRIES попыток на изображение.
+// одновременно, до IMAGE_TRIES попыток на изображение. Попытки чередуют источники:
+// CDN jsDelivr (копия репозитория на коммите с изображениями) и сама страница.
+const IMAGE_CDN = "https://cdn.jsdelivr.net/gh/IliaMinkiewicz/experiments@ca5e2d9/RMET_pilot_26/";
 const IMAGE_PARALLEL = 6;
 const IMAGE_TRIES = 4;
-const IMAGE_TIMEOUT_MS = 30000;
+const IMAGE_TIMEOUT_MS = 120000;
 const loader = { total: 0, done: 0, failed: [], promise: Promise.resolve([]) };
 
 function loadImage(p) {
@@ -188,8 +190,8 @@ function preload(paths) {
       const p = queue.shift();
       let im = null;
       for (let k = 0; k < IMAGE_TRIES && !im; k++) {
-        if (k) await sleep(1000 * k * k);
-        im = await loadImage(p);
+        if (k) await sleep(1000 * k);
+        im = await loadImage(k % 2 === 0 && IMAGE_CDN ? IMAGE_CDN + p : p);
       }
       if (im) state.images[p] = im;
       else loader.failed.push(p);
