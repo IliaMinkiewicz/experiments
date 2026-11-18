@@ -146,39 +146,87 @@ async function runTrial(t, s, b, i, practice) {
   backup();
 }
 
-function preload(paths) {
-  let done = 0;
-  const failed = [];
-  const status = () => {
-    $("load-status").textContent = `${TEXTS.loading}: ${done} из ${paths.length}` + (failed.length ? `, ошибок: ${failed.length}` : "");
-  };
-  status();
-  return Promise.all(paths.map((p) => new Promise((resolve) => {
+// Загрузка изображений: начинается сразу при открытии страницы, не больше IMAGE_PARALLEL
+// одновременно, до IMAGE_TRIES попыток на изображение.
+const IMAGE_PARALLEL = 6;
+const IMAGE_TRIES = 4;
+const IMAGE_TIMEOUT_MS = 30000;
+const loader = { total: 0, done: 0, failed: [], promise: Promise.resolve([]) };
+
+function loadImage(p) {
+  return new Promise((resolve) => {
     const im = new Image();
-    im.alt = "";
-    im.onload = () => {
-      const fin = () => { state.images[p] = im; done++; status(); resolve(); };
-      if (im.decode) im.decode().then(fin, fin); else fin();
+    let finished = false;
+    const finish = (ok) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      resolve(ok ? im : null);
     };
-    im.onerror = () => { failed.push(p); done++; status(); resolve(); };
+    const timer = setTimeout(() => { im.src = ""; finish(false); }, IMAGE_TIMEOUT_MS);
+    im.onload = () => { if (im.decode) im.decode().then(() => finish(true), () => finish(true)); else finish(true); };
+    im.onerror = () => finish(false);
+    im.alt = "";
     im.src = p;
-  }))).then(() => failed);
+  });
+}
+
+function renderLoad() {
+  const text = `${TEXTS.loading}: ${loader.done} из ${loader.total}` +
+    (loader.failed.length ? `, не загрузилось: ${loader.failed.length}` : "");
+  ["setup-load", "load-status"].forEach((id) => { $(id).textContent = text; });
+}
+
+function preload(paths) {
+  loader.total = paths.length;
+  loader.done = 0;
+  loader.failed = [];
+  renderLoad();
+  const queue = paths.slice();
+  const worker = async () => {
+    while (queue.length) {
+      const p = queue.shift();
+      let im = null;
+      for (let k = 0; k < IMAGE_TRIES && !im; k++) {
+        if (k) await sleep(1000 * k * k);
+        im = await loadImage(p);
+      }
+      if (im) state.images[p] = im;
+      else loader.failed.push(p);
+      loader.done++;
+      renderLoad();
+    }
+  };
+  loader.promise = Promise.all(Array.from({ length: IMAGE_PARALLEL }, worker)).then(() => loader.failed);
+  return loader.promise;
+}
+
+function allImages() {
+  const paths = Object.keys(STIMULI).map((k) => STIMULI[k].image);
+  ["direct", "reverse"].forEach((t) => (PRACTICE[t] || []).forEach((it) => { if (it.image) paths.push(it.image); }));
+  return [...new Set(paths)];
 }
 
 async function prepare() {
   state.plan = Design.groupPlan(state.group);
   state.schedule = Design.buildSchedule(state.pid, state.group, STIMULI, LISTS, PRACTICE);
   $("full-text").textContent = TEXTS.fullscreen;
+  $("b-retry").hidden = true;
   show("screen-full");
-  const paths = [...new Set(state.schedule.flatMap((s) => s.blocks.flatMap((b) => b.practice.concat(b.trials).map((t) => t.image))))];
-  const failed = await preload(paths);
+  const failed = await loader.promise;
   if (failed.length) {
-    $("load-status").textContent = "Не удалось загрузить изображения: " + failed.join(", ");
+    $("b-retry").hidden = false;
     return failed;
   }
   $("b-full").disabled = false;
   return failed;
 }
+
+$("b-retry").addEventListener("click", () => {
+  $("b-retry").hidden = true;
+  preload(loader.failed.slice());
+  prepare();
+});
 
 async function run() {
   state.running = true;
@@ -293,6 +341,8 @@ window.addEventListener("beforeunload", (e) => {
     e.returnValue = "";
   }
 });
+
+preload(allImages());
 
 if (AUTO) {
   state.pid = params.get("pid") || "auto";
