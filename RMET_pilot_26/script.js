@@ -129,7 +129,7 @@ async function runTrial(t, s, b, i, practice) {
     resp = await waitFor(matchResponse);
   }
   const chosen = t.options[resp.key - 1];
-  const st = STIMULI[t.stim] || {};
+  const st = STIMULI[t.stim] || t;
   state.rows.push({
     experiment: CONFIG.experiment, participant_id: state.pid, group: state.group,
     list_order: state.plan.map((p) => p.list).join("-"), first_task: state.plan[0].tasks[0],

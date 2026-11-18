@@ -5,6 +5,8 @@
   const LIST_ORDERS = [[1, 2, 4, 3], [2, 3, 1, 4], [3, 4, 2, 1], [4, 1, 3, 2]];
   // Позиции вариантов: 0 — слева сверху (клавиша 1), 1 — справа сверху (2), 2 — слева снизу (3), 3 — справа снизу (4).
   const PAIRS = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];
+  // Те же пары, сгруппированные так, что две пары одной группы вместе занимают все четыре позиции.
+  const MATCHINGS = [[[0, 1], [2, 3]], [[0, 2], [1, 3]], [[0, 3], [1, 2]]];
 
   function hashString(s) {
     let h = 0x811c9dc5;
@@ -89,18 +91,24 @@
     }));
   }
 
-  // Тренировка: элемент — {stim: "S12"} (изображение из базы) или {image, direct, reverse} со своими словами.
+  // Тренировка: элемент — {stim: "S12"} (изображение из базы) или {image, sex, angle, direct, reverse} со своими словами.
+  // Пробы идут в порядке списка. Позиции уравнены, как в основных блоках: в прямой задаче правильный ответ
+  // стоит на каждой позиции одинаково часто, в обратной при чётном числе проб каждая позиция
+  // занята правильным ответом одинаково часто (пары берутся по две из одной группы MATCHINGS).
   function practiceTrials(items, stimuli, task, seed) {
     const rand = makeRng(seed);
-    return (items || []).map((it, k) => {
+    const list = items || [];
+    const ms = task === "direct" ? null : shuffle(MATCHINGS, rand);
+    const slots = shuffle(list.map((_, i) => (ms ? ms[Math.floor(i / 2) % 3][i % 2] : i % 4)), rand);
+    return list.map((it, k) => {
       const item = it.stim ? stimuli[it.stim] : it;
       if (!item || !item[task]) throw new Error("Тренировочная проба " + (k + 1) + ": нет вариантов для задачи " + task);
       return {
-        stim: it.stim || "practice" + (k + 1),
+        stim: it.stim || it.id || "practice" + (k + 1),
         image: item.image,
-        options: task === "direct"
-          ? directOptions(item, Math.floor(rand() * 4), rand)
-          : reverseOptions(item, PAIRS[Math.floor(rand() * 6)], rand),
+        sex: item.sex,
+        angle: item.angle,
+        options: task === "direct" ? directOptions(item, slots[k], rand) : reverseOptions(item, slots[k], rand),
       };
     });
   }
