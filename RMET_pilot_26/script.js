@@ -2,8 +2,8 @@
 
 const CONFIG = {
   experiment: "RMET_pilot_26",
-  uploadUrl: "", // адрес веб-приложения Google Apps Script
-  secret: "",    // та же строка, что SHARED_SECRET в свойствах скрипта
+  uploadUrl: "https://script.google.com/macros/s/AKfycbwaFK70UaMGENE6P4eJWdMNYoG0dnQ79RzWa-dcMS81csWU3p5uAap58Lq4Q9xV48JP/exec", // адрес веб-приложения Google Apps Script
+  secret: "gs(&T6shgw3gs4nhdfk5p033EAS#34W%fgGHwsws3",    // та же строка, что SHARED_SECRET в свойствах скрипта
   fixationMs: 500,
   minAge: 18,
   maxAge: 45,
