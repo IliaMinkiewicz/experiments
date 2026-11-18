@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Эмоции по глазам</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<section id="screen-setup" class="screen form-screen">
+  <h1>Эмоции по глазам</h1>
+  <p class="note">Заполняет экспериментатор.</p>
+  <label>Номер участника
+    <input id="f-pid" type="text" autocomplete="off" spellcheck="false">
+  </label>
+  <label>Группа
+    <select id="f-group">
+      <option value="">—</option>
+      <option>1</option><option>2</option><option>3</option><option>4</option>
+      <option>5</option><option>6</option><option>7</option><option>8</option>
+    </select>
+  </label>
+  <label>Начать с сессии
+    <select id="f-start">
+      <option>1</option><option>2</option><option>3</option><option>4</option>
+    </select>
+  </label>
+  <p id="plan" class="note"></p>
+  <p id="setup-error" class="error"></p>
+  <button id="b-setup">Далее</button>
+</section>
+
+<section id="screen-consent" class="screen form-screen" hidden>
+  <div id="consent-text" class="text"></div>
+  <button id="b-consent">Согласен(на)</button>
+</section>
+
+<section id="screen-demo" class="screen form-screen" hidden>
+  <h2>Несколько вопросов о вас</h2>
+  <fieldset>
+    <legend>Пол</legend>
+    <label class="inline"><input type="radio" name="gender" value="женский"> женский</label>
+    <label class="inline"><input type="radio" name="gender" value="мужской"> мужской</label>
+  </fieldset>
+  <label>Возраст, лет
+    <input id="f-age" type="number" min="1" max="120" step="1">
+  </label>
+  <fieldset>
+    <legend>Родной язык</legend>
+    <label class="inline"><input type="radio" name="lang" value="русский"> русский</label>
+    <label class="inline"><input type="radio" name="lang" value="другой"> другой:</label>
+    <input id="f-lang-other" type="text" autocomplete="off">
+  </fieldset>
+  <fieldset>
+    <legend>Ведущая рука</legend>
+    <label class="inline"><input type="radio" name="hand" value="правая"> правая</label>
+    <label class="inline"><input type="radio" name="hand" value="левая"> левая</label>
+    <label class="inline"><input type="radio" name="hand" value="обе"> обе одинаково</label>
+  </fieldset>
+  <p id="demo-error" class="error"></p>
+  <button id="b-demo">Далее</button>
+</section>
+
+<section id="screen-full" class="screen form-screen" hidden>
+  <p id="full-text"></p>
+  <p id="load-status" class="note"></p>
+  <button id="b-full" disabled>Начать</button>
+</section>
+
+<section id="screen-msg" class="screen msg-screen" hidden>
+  <div id="msg-body" class="text"></div>
+  <p id="msg-status" class="status"></p>
+  <p id="msg-hint" class="hint"></p>
+</section>
+
+<section id="screen-fix" class="screen center-screen" hidden>
+  <div class="fixation">+</div>
+</section>
+
+<section id="screen-trial" class="screen trial-screen" hidden>
+  <div class="board">
+    <div class="opt left" id="o0"><span class="key">1</span><span class="word" id="w0"></span></div>
+    <div class="opt right" id="o1"><span class="key">2</span><span class="word" id="w1"></span></div>
+    <div class="stim" id="stim"></div>
+    <div class="opt left" id="o2"><span class="key">3</span><span class="word" id="w2"></span></div>
+    <div class="opt right" id="o3"><span class="key">4</span><span class="word" id="w3"></span></div>
+  </div>
+</section>
+
+<section id="screen-end" class="screen msg-screen" hidden>
+  <div id="end-text" class="text"></div>
+  <p id="end-status" class="status"></p>
+  <button id="b-download">Скачать файл с данными</button>
+</section>
+
+<script src="stimuli.js"></script>
+<script src="practice.js"></script>
+<script src="texts.js"></script>
+<script src="design.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
