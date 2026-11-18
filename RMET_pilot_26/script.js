@@ -149,7 +149,7 @@ async function runTrial(t, s, b, i, practice) {
 // Загрузка изображений: начинается сразу при открытии страницы, не больше IMAGE_PARALLEL
 // одновременно, до IMAGE_TRIES попыток на изображение. Попытки чередуют источники:
 // CDN jsDelivr (копия репозитория на коммите с изображениями) и сама страница.
-const IMAGE_CDN = "https://cdn.jsdelivr.net/gh/IliaMinkiewicz/experiments@ca5e2d9/RMET_pilot_26/";
+const IMAGE_CDN = "https://cdn.jsdelivr.net/gh/IliaMinkiewicz/experiments@b6c2e98/RMET_pilot_26/";
 const IMAGE_PARALLEL = 6;
 const IMAGE_TRIES = 4;
 const IMAGE_TIMEOUT_MS = 120000;
