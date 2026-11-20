@@ -1,4 +1,5 @@
-// Приём данных пилота и запись CSV в репозиторий GitHub (по файлу на сессию, без перезаписи),
+// Приём данных пилота и запись CSV в репозиторий GitHub (порциями по 12 проб, каждая порция — новый файл;
+// в конце пройденной сессии — ещё и цельный файл сессии),
 // а также выдача номеров новым участникам: 1, 2, 3… по порядку.
 //
 // Свойства скрипта (Project Settings → Script properties):
@@ -24,10 +25,15 @@ function doPost(e) {
 
     const pid = String(req.participantId || "").replace(/[^A-Za-z0-9_-]/g, "");
     const session = String(req.session || "").replace(/\D/g, "");
+    const part = String(req.part || "").replace(/\D/g, "");
     if (!pid || !session || !req.csvData) return reply(false, "missing fields");
 
+    // Файлы в папке участника: порция — 17_session2_part03_20261121_143005.csv,
+    // цельный файл пройденной сессии — 17_session2_full_20261121_145012.csv.
     const stamp = Utilities.formatDate(new Date(), TIME_ZONE, "yyyyMMdd_HHmmss");
-    const path = FOLDER_PATH + "/" + pid + "_session" + session + "_" + stamp + ".csv";
+    const kind = req.whole === true ? "_full" : part ? "_part" + ("0" + part).slice(-2) : "";
+    const name = pid + "_session" + session + kind + "_" + stamp + ".csv";
+    const path = FOLDER_PATH + "/" + pid + "/" + name;
     const url = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + path;
     const res = UrlFetchApp.fetch(url, {
       method: "put",
@@ -38,7 +44,7 @@ function doPost(e) {
         Accept: "application/vnd.github+json",
       },
       payload: JSON.stringify({
-        message: "RMET pilot: " + pid + ", session " + session,
+        message: "RMET pilot: " + pid + ", session " + session + (req.whole === true ? ", full" : part ? ", part " + part : ""),
         content: Utilities.base64Encode(req.csvData, Utilities.Charset.UTF_8),
         branch: BRANCH,
       }),

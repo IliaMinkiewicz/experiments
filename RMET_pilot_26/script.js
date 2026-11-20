@@ -10,6 +10,7 @@ const CONFIG = {
   uploadUrl: "https://script.google.com/macros/s/AKfycbwaFK70UaMGENE6P4eJWdMNYoG0dnQ79RzWa-dcMS81csWU3p5uAap58Lq4Q9xV48JP/exec", // адрес веб-приложения Google Apps Script
   secret: "gs(&T6shgw3gs4nhdfk5p033EAS#34W%fgGHwsws3",    // та же строка, что SHARED_SECRET в свойствах скрипта
   fixationMs: 500, // фиксационный крест перед изображением
+  chunkSize: 12,   // ответы отправляются порциями: каждые 12 проб и остаток в конце сессии
   minAge: 18,
   maxAge: 45,
 };
@@ -33,8 +34,8 @@ const AUTO = params.get("auto") === "1";
 
 // Столбцы файла с данными; одна строка — одна проба.
 const COLUMNS = [
-  // участник и расписание
-  "experiment", "participant_id", "group", "list_order", "first_task", "session", "list", "block", "task",
+  // участник и расписание; session_started — время начала сессии (отличает повторный проход после сбоя)
+  "experiment", "participant_id", "group", "list_order", "first_task", "session", "session_started", "list", "block", "task",
   // проба и изображение
   "is_practice", "trial", "stim_id", "image", "actor_sex", "angle",
   // четыре варианта по позициям (1 — слева вверху, 2 — справа вверху, 3 — слева внизу, 4 — справа внизу) и их роли
@@ -50,7 +51,11 @@ const COLUMNS = [
 // Текущее состояние: участник, его расписание, накопленные строки данных, загруженные изображения.
 const state = {
   pid: "", group: 0, startSession: 1, demo: {}, plan: null, schedule: null,
-  rows: [], uploads: {}, pending: [], images: {}, running: false,
+  session: 0, sessionStarted: "", // текущая сессия и время её начала
+  rows: [], images: {}, running: false,
+  sent: {},    // сессия → сколько её строк уже отправлено
+  parts: {},   // сессия → { номер порции: { status, rows } }
+  pending: [], // запросы, которые ещё выполняются
 };
 
 // ---------- Вспомогательные функции ----------
@@ -145,7 +150,7 @@ async function runTrial(trial, session, block, index, isPractice) {
   state.rows.push({
     experiment: CONFIG.experiment, participant_id: state.pid, group: state.group,
     list_order: state.plan.map((p) => p.list).join("-"), first_task: state.plan[0].tasks[0],
-    session: session.session, list: session.list, block: block.block, task: block.task,
+    session: session.session, session_started: state.sessionStarted, list: session.list, block: block.block, task: block.task,
     is_practice: isPractice ? 1 : 0, trial: index + 1,
     stim_id: trial.stim, image: trial.image, actor_sex: stim.sex || "", angle: stim.angle || "",
     opt1: trial.options[0].word, opt2: trial.options[1].word, opt3: trial.options[2].word, opt4: trial.options[3].word,
@@ -160,6 +165,7 @@ async function runTrial(trial, session, block, index, isPractice) {
     screen: screen.width + "x" + screen.height, window: innerWidth + "x" + innerHeight, user_agent: navigator.userAgent,
   });
   backup();
+  sendPart(session.session, false); // очередная порция, если набралось CONFIG.chunkSize новых проб
 }
 
 // ---------- Ход эксперимента ----------
@@ -169,6 +175,8 @@ async function run() {
   state.running = true;
   for (const session of state.schedule) {
     if (session.session < state.startSession) continue;
+    state.session = session.session;
+    state.sessionStarted = new Date().toISOString();
     for (const block of session.blocks) {
       await message(TEXTS[block.task], TEXTS.startButton);
       if (block.practice.length) {
@@ -178,7 +186,9 @@ async function run() {
       }
       for (let i = 0; i < block.trials.length; i++) await runTrial(block.trials[i], session, block, i, false);
     }
-    uploadSession(session.session);
+    sendPart(session.session, true); // остаток сессии
+    sendWhole(session.session);      // и цельный файл сессии
+    retryFailed();
     saveProgress(session.session);
     if (session.session < 4) await message(TEXTS.pause(session.session), TEXTS.continueButton, true);
   }
@@ -192,8 +202,7 @@ async function finish() {
   show("screen-end");
   renderStatus();
   await Promise.allSettled(state.pending);
-  const failed = Object.keys(state.uploads).filter((s) => state.uploads[s] === "error").map(Number);
-  for (const s of failed) await uploadSession(s);
+  await retryFailed();
   renderStatus();
   state.running = false;
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
@@ -238,36 +247,93 @@ function saveProgress(done) {
 
 // Строка о состоянии отправки («Данные: сессия 1: сохранены») на экранах перерыва и конца.
 let statusTarget = null;
+function sessionStatus(session) {
+  const statuses = Object.values(state.parts[session] || {}).map((p) => p.status);
+  if (!statuses.length) return null;
+  if (statuses.includes("error")) return "error";
+  if (statuses.includes("sending")) return "sending";
+  return statuses.includes("off") ? "off" : "ok";
+}
 function renderStatus() {
   if (!statusTarget) return;
   const names = { ok: "сохранены", sending: "отправляются", off: "отправка не настроена", error: "не отправлены, сохранены в браузере" };
-  const parts = Object.keys(state.uploads).map(Number).sort((a, b) => a - b)
-    .map((s) => `сессия ${s}: ${names[state.uploads[s]]}`);
-  $(statusTarget).textContent = parts.length ? "Данные: " + parts.join("; ") : "";
+  const lines = Object.keys(state.parts).map(Number).sort((a, b) => a - b)
+    .filter((s) => sessionStatus(s))
+    .map((s) => `сессия ${s}: ${names[sessionStatus(s)]}`);
+  $(statusTarget).textContent = lines.length ? "Данные: " + lines.join("; ") : "";
 }
 
-// Отправка строк одной сессии в Google Apps Script, который сохраняет их в закрытый репозиторий.
-function uploadSession(session) {
+// Отправка порциями: новые строки сессии уходят отдельным файлом в закрытый репозиторий
+// (через Google Apps Script) каждые CONFIG.chunkSize проб; final — остаток в конце сессии.
+// Так при досрочном выходе сохраняется всё, что участник успел пройти.
+function sendPart(session, final) {
+  const rows = state.rows.filter((r) => r.session === session);
+  const from = state.sent[session] || 0;
+  if (rows.length - from < (final ? 1 : CONFIG.chunkSize)) return;
+  state.sent[session] = rows.length;
+  const parts = (state.parts[session] = state.parts[session] || {});
+  const part = nextPart(session);
+  parts[part] = { status: "sending", rows: rows.slice(from) };
+  postPart(session, part);
+}
+
+// Цельный файл сессии — в дополнение к порциям, когда сессия пройдена до конца.
+function sendWhole(session) {
+  const rows = state.rows.filter((r) => r.session === session);
+  if (!rows.length) return;
+  const parts = (state.parts[session] = state.parts[session] || {});
+  parts.full = { status: "sending", rows: rows };
+  postPart(session, "full");
+}
+
+const nextPart = (session) => Object.keys(state.parts[session] || {}).filter((k) => k !== "full").length + 1;
+
+// part — номер порции или "full" для цельного файла сессии.
+function partBody(session, part, rows) {
+  return JSON.stringify({
+    experiment: CONFIG.experiment, participantId: state.pid, group: state.group, session: session,
+    part: part === "full" ? "" : part, whole: part === "full",
+    timestamp: new Date().toISOString(), secret: CONFIG.secret, csvData: toCsv(rows),
+  });
+}
+
+function postPart(session, part) {
+  const entry = state.parts[session][part];
   if (AUTO || !CONFIG.uploadUrl) {
-    state.uploads[session] = "off";
+    entry.status = "off";
     renderStatus();
     return Promise.resolve();
   }
-  state.uploads[session] = "sending";
+  entry.status = "sending";
   renderStatus();
-  const body = JSON.stringify({
-    experiment: CONFIG.experiment, participantId: state.pid, group: state.group, session: session,
-    timestamp: new Date().toISOString(), secret: CONFIG.secret,
-    csvData: toCsv(state.rows.filter((r) => r.session === session)),
-  });
-  const request = fetch(CONFIG.uploadUrl, { method: "POST", body: body })
+  const request = fetch(CONFIG.uploadUrl, { method: "POST", body: partBody(session, part, entry.rows) })
     .then((res) => res.json())
-    .then((reply) => { state.uploads[session] = reply && reply.ok ? "ok" : "error"; })
-    .catch(() => { state.uploads[session] = "error"; })
+    .then((reply) => { entry.status = reply && reply.ok ? "ok" : "error"; })
+    .catch(() => { entry.status = "error"; })
     .then(renderStatus);
   state.pending.push(request);
   return request;
 }
+
+// Повторная отправка порций, которые не дошли (в конце каждой сессии и на последнем экране).
+function retryFailed() {
+  const retries = [];
+  for (const session of Object.keys(state.parts)) {
+    for (const part of Object.keys(state.parts[session])) {
+      if (state.parts[session][part].status === "error") retries.push(postPart(Number(session), part === "full" ? part : Number(part)));
+    }
+  }
+  return Promise.allSettled(retries);
+}
+
+// Закрытие вкладки посреди сессии: неотправленные ответы уходят вдогонку, без ожидания ответа сервера.
+window.addEventListener("pagehide", () => {
+  if (!state.running || AUTO || !CONFIG.uploadUrl || !navigator.sendBeacon) return;
+  const session = state.session;
+  const rows = state.rows.filter((r) => r.session === session).slice(state.sent[session] || 0);
+  if (!rows.length) return;
+  navigator.sendBeacon(CONFIG.uploadUrl, partBody(session, nextPart(session), rows));
+});
 
 // ---------- Загрузка изображений ----------
 // Начинается сразу при открытии страницы; попытки чередуют jsDelivr и саму страницу.
