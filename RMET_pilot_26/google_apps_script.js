@@ -35,7 +35,7 @@ function doPost(e) {
     const name = pid + "_session" + session + kind + "_" + stamp + ".csv";
     const path = FOLDER_PATH + "/" + pid + "/" + name;
     const url = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/" + path;
-    const res = UrlFetchApp.fetch(url, {
+    const options = {
       method: "put",
       contentType: "application/json",
       muteHttpExceptions: true,
@@ -48,9 +48,22 @@ function doPost(e) {
         content: Utilities.base64Encode(req.csvData, Utilities.Charset.UTF_8),
         branch: BRANCH,
       }),
-    });
-    const code = res.getResponseCode();
-    return reply(code === 200 || code === 201, "github " + code);
+    };
+    // Записи по одной: одновременные коммиты в репозиторий конфликтуют (GitHub отвечает 409).
+    // При конфликте или сбое GitHub — до трёх попыток.
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      let code = 0;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        code = UrlFetchApp.fetch(url, options).getResponseCode();
+        if (code !== 409 && code < 500) break;
+        Utilities.sleep(1000 * attempt);
+      }
+      return reply(code === 200 || code === 201, "github " + code);
+    } finally {
+      lock.releaseLock();
+    }
   } catch (err) {
     return reply(false, String(err));
   }

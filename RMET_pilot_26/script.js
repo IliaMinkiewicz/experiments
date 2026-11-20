@@ -297,6 +297,10 @@ function partBody(session, part, rows) {
   });
 }
 
+// Отправки идут строго по очереди: одновременные записи в репозиторий конфликтуют.
+// Неудачная отправка повторяется до UPLOAD_TRIES раз с паузой, только потом считается неотправленной.
+const UPLOAD_TRIES = 3;
+let uploadQueue = Promise.resolve();
 function postPart(session, part) {
   const entry = state.parts[session][part];
   if (AUTO || !CONFIG.uploadUrl) {
@@ -305,12 +309,19 @@ function postPart(session, part) {
     return Promise.resolve();
   }
   entry.status = "sending";
+  entry.tries = (entry.tries || 0) + 1;
   renderStatus();
-  const request = fetch(CONFIG.uploadUrl, { method: "POST", body: partBody(session, part, entry.rows) })
-    .then((res) => res.json())
-    .then((reply) => { entry.status = reply && reply.ok ? "ok" : "error"; })
-    .catch(() => { entry.status = "error"; })
-    .then(renderStatus);
+  const request = uploadQueue
+    .then(() => fetch(CONFIG.uploadUrl, { method: "POST", body: partBody(session, part, entry.rows) }).then((res) => res.json()))
+    .then((reply) => Boolean(reply && reply.ok))
+    .catch(() => false)
+    .then((ok) => {
+      if (ok) entry.status = "ok";
+      else if (entry.tries < UPLOAD_TRIES) setTimeout(() => postPart(session, part), 3000 * entry.tries);
+      else entry.status = "error";
+      renderStatus();
+    });
+  uploadQueue = request;
   state.pending.push(request);
   return request;
 }
@@ -320,7 +331,10 @@ function retryFailed() {
   const retries = [];
   for (const session of Object.keys(state.parts)) {
     for (const part of Object.keys(state.parts[session])) {
-      if (state.parts[session][part].status === "error") retries.push(postPart(Number(session), part === "full" ? part : Number(part)));
+      const entry = state.parts[session][part];
+      if (entry.status !== "error") continue;
+      entry.tries = 0;
+      retries.push(postPart(Number(session), part === "full" ? part : Number(part)));
     }
   }
   return Promise.allSettled(retries);
