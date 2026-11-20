@@ -40,10 +40,8 @@ const COLUMNS = [
   "is_practice", "trial", "stim_id", "image", "actor_sex", "angle",
   // четыре варианта по позициям (1 — слева вверху, 2 — справа вверху, 3 — слева внизу, 4 — справа внизу) и их роли
   "opt1", "opt2", "opt3", "opt4", "role1", "role2", "role3", "role4",
-  // ответ и время (мс от появления изображения)
-  "position", "response", "response_role", "correct", "rt_ms", "move_onset_ms",
-  // мышь: где был курсор при появлении изображения, где был щелчок, расстояние между ними (px)
-  "cursor_start_x", "cursor_start_y", "click_x", "click_y", "distance_px", "onset_iso",
+  // ответ: нажатая клавиша (= позиция 1–4), слово, его роль; время — мс от появления изображения до нажатия
+  "position", "response", "response_role", "correct", "rt_ms", "onset_iso",
   // анкета и компьютер участника
   "age", "sex", "native_ru", "screen", "window", "user_agent",
 ];
@@ -87,39 +85,27 @@ function message(html, buttonText, withStatus) {
   });
 }
 
-// ---------- Мышь ----------
+// ---------- Клавиатура ----------
 
-// Последнее известное положение курсора и время первого движения после появления изображения.
-const pointer = { x: null, y: null, moved: null };
-let answerWaiter = null; // функция, которая получит ответ; задана, пока проба ждёт щелчка
-
-function trackPointer(e) {
-  pointer.x = e.clientX;
-  pointer.y = e.clientY;
-  if (answerWaiter && pointer.moved === null && e.type === "pointermove") pointer.moved = e.timeStamp;
-}
-window.addEventListener("pointermove", trackPointer, { passive: true });
-window.addEventListener("pointerdown", trackPointer, { passive: true, capture: true });
-
-// Ответ — нажатие левой кнопки мыши на одном из четырёх слов (кнопки o0–o3 — позиции 1–4).
-[0, 1, 2, 3].forEach((pos) => $("o" + pos).addEventListener("pointerdown", (e) => {
-  if (!answerWaiter || e.button !== 0) return;
+// Ответ — клавиша 1–4 (основной ряд или цифровой блок): 1 — слово слева вверху, 2 — справа вверху,
+// 3 — слева внизу, 4 — справа внизу. Учитывается только первое нажатие в пробе.
+let answerWaiter = null; // функция, которая получит ответ; задана, пока проба ждёт нажатия
+window.addEventListener("keydown", (e) => {
+  if (!answerWaiter || e.repeat) return;
+  const m = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
+  if (!m) return;
   e.preventDefault();
   const receive = answerWaiter;
   answerWaiter = null;
-  receive({ pos: pos, time: e.timeStamp, x: e.clientX, y: e.clientY });
-}));
+  receive({ pos: Number(m[1]) - 1, time: e.timeStamp });
+});
 
-// Автопрогон: щелчок по случайному слову. Параметр ?hold=N останавливает прогон на N-й пробе (для снимка экрана).
-async function autoClick() {
+// Автопрогон: нажатие случайной клавиши. Параметр ?hold=N останавливает прогон на N-й пробе (для снимка экрана).
+async function autoPress() {
   state.autoCount = (state.autoCount || 0) + 1;
   if (state.autoCount === Number(params.get("hold"))) await new Promise(() => {});
   await sleep(2);
-  const button = $("o" + Math.floor(Math.random() * 4));
-  const box = button.getBoundingClientRect();
-  button.dispatchEvent(new PointerEvent("pointerdown", {
-    bubbles: true, button: 0, pointerType: "mouse", clientX: box.x + box.width / 2, clientY: box.y + box.height / 2,
-  }));
+  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit" + (1 + Math.floor(Math.random() * 4)) }));
 }
 
 // ---------- Одна проба ----------
@@ -129,24 +115,20 @@ async function runTrial(trial, session, block, index, isPractice) {
   show("screen-fix");
   await sleep(AUTO ? 1 : CONFIG.fixationMs);
   $("stim").replaceChildren(state.images[trial.image]);
-  trial.options.forEach((option, pos) => { $("o" + pos).textContent = option.word; });
+  trial.options.forEach((option, pos) => { $("w" + pos).textContent = option.word; });
   await nextFrame();
   show("screen-trial");
   const onset = await nextFrame(); // первый кадр после отрисовки изображения — от него считается время ответа
   const onsetIso = new Date().toISOString();
-  const start = { x: pointer.x, y: pointer.y };
-  pointer.moved = null;
 
-  // Ждём щелчка по слову.
+  // Ждём нажатия клавиши 1–4; время не ограничено.
   const answer = new Promise((resolve) => { answerWaiter = resolve; });
-  if (AUTO) await autoClick();
+  if (AUTO) await autoPress();
   const resp = await answer;
 
   // Строка данных.
   const chosen = trial.options[resp.pos];
   const stim = STIMULI[trial.stim] || trial; // у тренировочных проб пол и ракурс записаны в самой пробе
-  const px = (v) => (v === null ? "" : Math.round(v));
-  const ms = (t) => (t === null ? "" : (t - onset).toFixed(1));
   state.rows.push({
     experiment: CONFIG.experiment, participant_id: state.pid, group: state.group,
     list_order: state.plan.map((p) => p.list).join("-"), first_task: state.plan[0].tasks[0],
@@ -157,10 +139,7 @@ async function runTrial(trial, session, block, index, isPractice) {
     role1: trial.options[0].role, role2: trial.options[1].role, role3: trial.options[2].role, role4: trial.options[3].role,
     position: resp.pos + 1, response: chosen.word, response_role: chosen.role,
     correct: chosen.role.startsWith("correct") ? 1 : 0,
-    rt_ms: ms(resp.time), move_onset_ms: ms(pointer.moved),
-    cursor_start_x: px(start.x), cursor_start_y: px(start.y), click_x: px(resp.x), click_y: px(resp.y),
-    distance_px: start.x === null ? "" : px(Math.hypot(resp.x - start.x, resp.y - start.y)),
-    onset_iso: onsetIso,
+    rt_ms: (resp.time - onset).toFixed(1), onset_iso: onsetIso,
     age: state.demo.age, sex: state.demo.sex, native_ru: state.demo.native_ru,
     screen: screen.width + "x" + screen.height, window: innerWidth + "x" + innerHeight, user_agent: navigator.userAgent,
   });

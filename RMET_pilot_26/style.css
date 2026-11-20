@@ -75,7 +75,7 @@ body {
 .card button.secondary { margin-right: 8px; color: #1c1e21; background: #fff; border-color: #d9dce1; }
 .card button.secondary:hover { border-color: #2b6cb0; }
 
-/* Пробы: белый фон, ответ щелчком мыши по слову. */
+/* Пробы: белый фон, ответ клавишами 1–4; курсор мыши на время пробы скрыт. */
 .center-screen, .trial-screen {
   min-height: 100vh;
   display: flex;
@@ -83,6 +83,7 @@ body {
   justify-content: center;
   background: #fff;
   user-select: none;
+  cursor: none;
 }
 .fixation { font-size: 56px; line-height: 1; }
 
@@ -104,18 +105,21 @@ body {
 .stim img { width: min(60vw, 700px); height: auto; display: block; }
 
 .opt {
-  width: 14em;
-  padding: 0.55em 1em;
-  font: inherit;
   font-size: clamp(18px, 2vw, 26px);
   color: #1c1e21;
   white-space: nowrap;
-  background: #fff;
-  border: 1.5px solid #c9ced6;
-  border-radius: 10px;
-  cursor: pointer;
 }
-.opt:hover { background: #eef4fb; border-color: #2b6cb0; }
-.opt:focus { outline: none; }
 .opt.left { justify-self: start; margin-left: 4vw; }
 .opt.right { justify-self: end; margin-right: 4vw; }
+.key {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 0.5em;
+  padding: 0 0.3em;
+  border: 1px solid #c9ced6;
+  border-radius: 6px;
+  color: #6b7280;
+  text-align: center;
+  font-size: 0.8em;
+  vertical-align: 0.1em;
+}
