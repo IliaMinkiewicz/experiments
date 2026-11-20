@@ -166,9 +166,18 @@ function buildTrials() {
     kind: "train", pos: i + 1, id: t.id, file: "train/" + t.file
   }));
 
+  // картинки из прошлых частей не повторяются
+  const before = new Set();
+  if (PART > 1) PARTS.done.forEach(l => {
+    try {
+      const s = JSON.parse(localStorage.getItem("naming_" + PID + "_L" + l) || "null");
+      if (s && s.rows) s.rows.forEach(r => before.add(r.stim_id));
+    } catch (e) {}
+  });
+
   // якоря (A…) с версии 2.3 не показываются
   const main = STIM.items
-    .filter(it => it.list === LIST && it.id[0] !== "A")
+    .filter(it => it.list === LIST && it.id[0] !== "A" && !before.has(it.id))
     .map(it => ({ kind: "main", id: it.id, file: "img/" + it.file,
                   check: it.check || "" }));
 
