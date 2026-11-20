@@ -83,12 +83,58 @@
     return opts;
   }
 
-  // Основной блок: случайный порядок изображений; в прямой задаче правильный ответ стоит
-  // на каждой из 4 позиций одинаково часто, в обратной два правильных ответа занимают
+  // Псевдослучайный порядок изображений: подряд не больше MAX_RUN изображений одного пола актёра
+  // и не больше MAX_RUN одного ракурса. Сначала строится случайная последовательность ячеек
+  // «пол × ракурс» (поиск с возвратом: если продолжить нельзя, шаг назад), затем в неё
+  // в случайном порядке раскладываются изображения каждой ячейки.
+  const MAX_RUN = 2;
+  function constrainedOrder(ids, stimuli, rand) {
+    const cells = {};
+    shuffle(ids, rand).forEach((id) => {
+      const key = stimuli[id].sex + "|" + stimuli[id].angle;
+      (cells[key] = cells[key] || []).push(id);
+    });
+    const keys = Object.keys(cells);
+    const left = keys.map((k) => cells[k].length);
+    const sex = (i) => stimuli[cells[keys[i]][0]].sex;
+    const angle = (i) => stimuli[cells[keys[i]][0]].angle;
+    const seq = [];
+    const deadEnds = new Set(); // уже проверенные тупиковые состояния
+    const fits = (i) => {
+      const last = seq.slice(-MAX_RUN);
+      if (last.length < MAX_RUN) return true;
+      return !last.every((j) => sex(j) === sex(i)) && !last.every((j) => angle(j) === angle(i));
+    };
+    const place = () => {
+      if (seq.length === ids.length) return true;
+      const state = left.join(",") + "|" + seq.slice(-MAX_RUN).join(",");
+      if (deadEnds.has(state)) return false;
+      // Кандидаты в случайном порядке с весом, равным числу оставшихся изображений ячейки
+      // (как при вытягивании без возвращения), иначе малые ячейки сдвигались бы к началу блока.
+      const candidates = keys.map((_, i) => i).filter((i) => left[i] && fits(i))
+        .map((i) => [Math.pow(rand(), 1 / left[i]), i])
+        .sort((a, b) => b[0] - a[0])
+        .map((pair) => pair[1]);
+      for (const i of candidates) {
+        left[i]--;
+        seq.push(i);
+        if (place()) return true;
+        left[i]++;
+        seq.pop();
+      }
+      deadEnds.add(state);
+      return false;
+    };
+    if (!place()) throw new Error("Не удалось составить порядок изображений с ограничениями");
+    return seq.map((i) => cells[keys[i]].shift());
+  }
+
+  // Основной блок: псевдослучайный порядок изображений (см. выше); в прямой задаче правильный ответ
+  // стоит на каждой из 4 позиций одинаково часто, в обратной два правильных ответа занимают
   // каждую из 6 пар позиций одинаково часто.
   function blockTrials(ids, stimuli, task, seed) {
     const rand = makeRng(seed);
-    const order = shuffle(ids, rand);
+    const order = constrainedOrder(ids, stimuli, rand);
     const n = order.length;
     const slots = task === "direct"
       ? shuffle(Array.from({ length: n }, (_, i) => i % 4), rand)
