@@ -7,7 +7,9 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- Экраны переключает script.js: в каждый момент виден один section. -->
 
+<!-- Экран экспериментатора: номер участника (если страница открыта без ?p=) -->
 <section id="screen-setup" class="screen form-screen" hidden>
   <div class="card">
     <h1>Параметры эксперимента</h1>
@@ -23,6 +25,7 @@
   </div>
 </section>
 
+<!-- Согласие -->
 <section id="screen-consent" class="screen form-screen" hidden>
   <div class="card">
     <div id="consent-text" class="scrollbox"></div>
@@ -30,6 +33,7 @@
   </div>
 </section>
 
+<!-- Анкета -->
 <section id="screen-demo" class="screen form-screen" hidden>
   <div class="card">
     <h1>Несколько вопросов о вас</h1>
@@ -58,6 +62,7 @@
   </div>
 </section>
 
+<!-- Переход в полноэкранный режим; кнопка включается, когда загружены изображения -->
 <section id="screen-full" class="screen form-screen" hidden>
   <div class="card">
     <p id="full-text"></p>
@@ -67,6 +72,7 @@
   </div>
 </section>
 
+<!-- Инструкции, тренировка, перерывы: текст и кнопка -->
 <section id="screen-msg" class="screen form-screen" hidden>
   <div class="card">
     <div id="msg-body" class="text"></div>
@@ -75,10 +81,12 @@
   </div>
 </section>
 
+<!-- Фиксационный крест -->
 <section id="screen-fix" class="screen center-screen" hidden>
   <div class="fixation">+</div>
 </section>
 
+<!-- Проба: изображение и четыре слова-кнопки (o0–o3 — позиции 1–4) -->
 <section id="screen-trial" class="screen trial-screen" hidden>
   <div class="board">
     <button class="opt left" id="o0" type="button"></button>
@@ -89,6 +97,7 @@
   </div>
 </section>
 
+<!-- Конец -->
 <section id="screen-end" class="screen form-screen" hidden>
   <div class="card">
     <div id="end-text" class="text"></div>
