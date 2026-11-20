@@ -20,8 +20,9 @@ const COLUMNS = [
   "experiment", "participant_id", "group", "list_order", "first_task", "session", "list", "block", "task",
   "is_practice", "trial", "stim_id", "image", "actor_sex", "angle",
   "opt1", "opt2", "opt3", "opt4", "role1", "role2", "role3", "role4",
-  "key", "response", "response_role", "correct", "rt_ms", "onset_iso",
-  "gender", "age", "native_language", "handedness", "screen", "window", "user_agent",
+  "position", "response", "response_role", "correct", "rt_ms", "move_onset_ms",
+  "cursor_start_x", "cursor_start_y", "click_x", "click_y", "distance_px", "onset_iso",
+  "age", "sex", "native_ru", "screen", "window", "user_agent",
 ];
 
 const state = {
@@ -38,23 +39,25 @@ function show(id) {
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
 }
 
-// Клавиатура: один обработчик, одно ожидание за раз.
-let keyWaiter = null;
-window.addEventListener("keydown", (e) => {
-  if (!keyWaiter || e.repeat) return;
-  const v = keyWaiter.match(e);
-  if (v === null) return;
-  e.preventDefault();
-  const w = keyWaiter;
-  keyWaiter = null;
-  w.resolve({ key: v, ts: e.timeStamp });
-});
-const waitFor = (match) => new Promise((resolve) => { keyWaiter = { match, resolve }; });
-const matchSpace = (e) => (e.code === "Space" ? "space" : null);
-const matchResponse = (e) => {
-  const m = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
-  return m ? Number(m[1]) : null;
+// Мышь: последнее известное положение курсора; время первого движения после появления изображения.
+const pointer = { x: null, y: null, moved: null };
+let answerWaiter = null;
+const trackPointer = (e) => {
+  pointer.x = e.clientX;
+  pointer.y = e.clientY;
+  if (answerWaiter && pointer.moved === null && e.type === "pointermove") pointer.moved = e.timeStamp;
 };
+window.addEventListener("pointermove", trackPointer, { passive: true });
+window.addEventListener("pointerdown", trackPointer, { passive: true, capture: true });
+
+// Ответ — нажатие левой кнопки мыши на одном из четырёх слов (o0–o3 — позиции 1–4).
+[0, 1, 2, 3].forEach((p) => $("o" + p).addEventListener("pointerdown", (e) => {
+  if (!answerWaiter || e.button !== 0) return;
+  e.preventDefault();
+  const w = answerWaiter;
+  answerWaiter = null;
+  w({ pos: p, ts: e.timeStamp, x: e.clientX, y: e.clientY });
+}));
 
 // Состояние отправки данных.
 let statusTarget = null;
@@ -66,14 +69,34 @@ function renderStatus() {
   $(statusTarget).textContent = parts.length ? "Данные: " + parts.join("; ") : "";
 }
 
-async function message(html, hint, withStatus) {
+function message(html, button, withStatus) {
   $("msg-body").innerHTML = html;
-  $("msg-hint").textContent = hint || "";
+  $("b-msg").textContent = button || TEXTS.continueButton;
   $("msg-status").textContent = "";
   statusTarget = withStatus ? "msg-status" : null;
   renderStatus();
   show("screen-msg");
-  if (!AUTO) await waitFor(matchSpace);
+  return new Promise((resolve) => {
+    $("b-msg").onclick = () => {
+      $("b-msg").onclick = null;
+      resolve();
+    };
+    if (AUTO) setTimeout(() => $("b-msg").click(), 0);
+  });
+}
+
+// Прогресс участника в браузере: сколько сессий пройдено и ответы анкеты.
+// По нему при повторном открытии ссылки исследование продолжается с прерванной сессии.
+const progressKey = () => CONFIG.experiment + "_progress_" + state.pid;
+function loadProgress() {
+  try { return JSON.parse(localStorage.getItem(progressKey()) || "null"); } catch (e) { return null; }
+}
+function saveProgress(done) {
+  if (AUTO) return;
+  try { localStorage.setItem(progressKey(), JSON.stringify({ done: done, demo: state.demo })); } catch (e) { /* хранилище недоступно */ }
+}
+function savedRows() {
+  try { return JSON.parse(localStorage.getItem(CONFIG.experiment + "_" + state.pid) || "[]"); } catch (e) { return []; }
 }
 
 function toCsv(rows) {
@@ -114,21 +137,27 @@ async function runTrial(t, s, b, i, practice) {
   show("screen-fix");
   await sleep(AUTO ? 1 : CONFIG.fixationMs);
   $("stim").replaceChildren(state.images[t.image]);
-  t.options.forEach((o, p) => { $("w" + p).textContent = o.word; });
+  t.options.forEach((o, p) => { $("o" + p).textContent = o.word; });
   await nextFrame();
   show("screen-trial");
   const onset = await nextFrame(); // первый кадр после отрисовки изображения
   const onsetIso = new Date().toISOString();
-  let resp;
+  const start = { x: pointer.x, y: pointer.y };
+  pointer.moved = null;
+  const answer = new Promise((resolve) => { answerWaiter = resolve; });
   if (AUTO) {
     state.autoCount = (state.autoCount || 0) + 1;
     if (state.autoCount === Number(params.get("hold"))) await new Promise(() => {});
     await sleep(2);
-    resp = { key: 1 + Math.floor(Math.random() * 4), ts: performance.now() };
-  } else {
-    resp = await waitFor(matchResponse);
+    const el = $("o" + Math.floor(Math.random() * 4));
+    const r = el.getBoundingClientRect();
+    el.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true, button: 0, pointerType: "mouse", clientX: r.x + r.width / 2, clientY: r.y + r.height / 2,
+    }));
   }
-  const chosen = t.options[resp.key - 1];
+  const resp = await answer;
+  const chosen = t.options[resp.pos];
+  const dist = start.x === null ? "" : Math.hypot(resp.x - start.x, resp.y - start.y).toFixed(0);
   const st = STIMULI[t.stim] || t;
   state.rows.push({
     experiment: CONFIG.experiment, participant_id: state.pid, group: state.group,
@@ -137,10 +166,13 @@ async function runTrial(t, s, b, i, practice) {
     trial: i + 1, stim_id: t.stim, image: t.image, actor_sex: st.sex || "", angle: st.angle || "",
     opt1: t.options[0].word, opt2: t.options[1].word, opt3: t.options[2].word, opt4: t.options[3].word,
     role1: t.options[0].role, role2: t.options[1].role, role3: t.options[2].role, role4: t.options[3].role,
-    key: resp.key, response: chosen.word, response_role: chosen.role,
+    position: resp.pos + 1, response: chosen.word, response_role: chosen.role,
     correct: chosen.role.indexOf("correct") === 0 ? 1 : 0,
-    rt_ms: (resp.ts - onset).toFixed(1), onset_iso: onsetIso,
-    gender: state.demo.gender, age: state.demo.age, native_language: state.demo.lang, handedness: state.demo.hand,
+    rt_ms: (resp.ts - onset).toFixed(1),
+    move_onset_ms: pointer.moved === null ? "" : (pointer.moved - onset).toFixed(1),
+    cursor_start_x: start.x === null ? "" : Math.round(start.x), cursor_start_y: start.y === null ? "" : Math.round(start.y),
+    click_x: Math.round(resp.x), click_y: Math.round(resp.y), distance_px: dist, onset_iso: onsetIso,
+    age: state.demo.age, sex: state.demo.sex, native_ru: state.demo.native_ru,
     screen: screen.width + "x" + screen.height, window: innerWidth + "x" + innerHeight, user_agent: navigator.userAgent,
   });
   backup();
@@ -209,10 +241,10 @@ function allImages() {
   return [...new Set(paths)];
 }
 
-async function prepare() {
+async function prepare(note) {
   state.plan = Design.groupPlan(state.group);
   state.schedule = Design.buildSchedule(state.pid, state.group, STIMULI, LISTS, PRACTICE);
-  $("full-text").textContent = TEXTS.fullscreen;
+  $("full-text").textContent = (note ? note + " " : "") + TEXTS.fullscreen;
   $("b-retry").hidden = true;
   show("screen-full");
   const failed = await loader.promise;
@@ -235,16 +267,17 @@ async function run() {
   for (const s of state.schedule) {
     if (s.session < state.startSession) continue;
     for (const b of s.blocks) {
-      await message(TEXTS[b.task], TEXTS.startHint);
+      await message(TEXTS[b.task], TEXTS.startButton);
       if (b.practice.length) {
-        await message(TEXTS.practiceStart, TEXTS.startHint);
+        await message(TEXTS.practiceStart, TEXTS.startButton);
         for (let i = 0; i < b.practice.length; i++) await runTrial(b.practice[i], s, b, i, true);
-        await message(TEXTS.practiceEnd, TEXTS.startHint);
+        await message(TEXTS.practiceEnd, TEXTS.startButton);
       }
       for (let i = 0; i < b.trials.length; i++) await runTrial(b.trials[i], s, b, i, false);
     }
     uploadSession(s.session);
-    if (s.session < 4) await message(TEXTS.pause(s.session), "", true);
+    saveProgress(s.session);
+    if (s.session < 4) await message(TEXTS.pause(s.session), TEXTS.continueButton, true);
   }
   await finish();
 }
@@ -269,53 +302,74 @@ async function finish() {
   }
 }
 
+// Группа задаётся номером участника по кругу: 1–8, затем снова 1 (участник 9 — группа 1).
+// Для проверок можно указать группу явно: ?p=test&g=5. Номер сессии ?s=2 — только на случай,
+// когда прогресс в браузере потерян (участник открыл ссылку на другом компьютере).
+function groupFor(pid) {
+  const g = Number(params.get("g"));
+  if (Number.isInteger(g) && g >= 1 && g <= 8) return g;
+  const n = Number(pid);
+  return /^\d+$/.test(pid) && n >= 1 ? ((n - 1) % 8) + 1 : 0;
+}
+
 function planText(group) {
   const plan = Design.groupPlan(group);
   const names = { direct: "прямая", reverse: "обратная" };
-  return "Листы по сессиям: " + plan.map((p) => p.list).join("–") + "; первая задача: " + names[plan[0].tasks[0]];
+  return `Группа ${group}: листы по сессиям ${plan.map((p) => p.list).join("–")}, первая задача — ${names[plan[0].tasks[0]]}.`;
 }
 
-$("f-group").addEventListener("change", () => {
-  const g = $("f-group").value;
+function begin(pid) {
+  state.pid = pid;
+  state.group = groupFor(pid);
+  const forced = Number(params.get("s"));
+  const prog = loadProgress();
+  const done = prog ? prog.done : 0;
+  if (!(forced >= 1 && forced <= 4) && done >= 4) {
+    $("end-text").innerHTML = TEXTS.done;
+    $("b-download").hidden = true;
+    show("screen-end");
+    return;
+  }
+  state.startSession = forced >= 1 && forced <= 4 ? forced : done + 1;
+  if (prog && prog.demo) {
+    state.demo = prog.demo;
+    state.rows = savedRows().filter((r) => r.session < state.startSession);
+    prepare(TEXTS.resume(state.startSession));
+  } else {
+    $("consent-text").innerHTML = TEXTS.consent;
+    show("screen-consent");
+  }
+}
+
+$("f-pid").addEventListener("input", () => {
+  const g = groupFor($("f-pid").value.trim());
   $("plan").textContent = g ? planText(g) : "";
 });
 
 $("b-setup").addEventListener("click", () => {
   const pid = $("f-pid").value.trim();
-  const group = Number($("f-group").value);
-  let err = "";
-  if (!/^[A-Za-z0-9_-]+$/.test(pid)) err = "Номер участника: латинские буквы, цифры, «-» или «_».";
-  else if (!(group >= 1 && group <= 8)) err = "Выберите группу.";
-  $("setup-error").textContent = err;
-  if (err) return;
-  state.pid = pid;
-  state.group = group;
-  state.startSession = Number($("f-start").value);
-  $("consent-text").innerHTML = TEXTS.consent;
-  show("screen-consent");
+  if (!groupFor(pid)) {
+    $("setup-error").textContent = "Введите номер участника: целое число от 1.";
+    return;
+  }
+  history.replaceState(null, "", "?p=" + pid); // при перезагрузке страницы участник продолжит с того же места
+  begin(pid);
 });
 
 $("b-consent").addEventListener("click", () => show("screen-demo"));
 
-$("f-lang-other").addEventListener("input", () => {
-  document.querySelector('input[name="lang"][value="другой"]').checked = true;
-});
-
 $("b-demo").addEventListener("click", () => {
-  const val = (name) => (document.querySelector(`input[name="${name}"]:checked`) || {}).value;
-  const gender = val("gender");
-  const lang = val("lang");
-  const hand = val("hand");
   const age = Number($("f-age").value);
-  const other = $("f-lang-other").value.trim();
+  const sex = $("f-sex").value;
+  const lang = $("f-lang").value;
   let err = "";
-  if (!gender) err = "Укажите пол.";
-  else if (!Number.isInteger(age) || age < CONFIG.minAge || age > CONFIG.maxAge) err = `Укажите возраст от ${CONFIG.minAge} до ${CONFIG.maxAge} лет.`;
-  else if (!lang || (lang === "другой" && !other)) err = "Укажите родной язык.";
-  else if (!hand) err = "Укажите ведущую руку.";
+  if (!Number.isInteger(age) || age < CONFIG.minAge || age > CONFIG.maxAge) err = `В исследовании участвуют люди от ${CONFIG.minAge} до ${CONFIG.maxAge} лет.`;
+  else if (!sex) err = "Укажите пол.";
+  else if (!lang) err = "Укажите, родной ли для вас русский язык.";
   $("demo-error").textContent = err;
   if (err) return;
-  state.demo = { gender: gender, age: age, lang: lang === "другой" ? other : lang, hand: hand };
+  state.demo = { age: age, sex: sex, native_ru: lang };
+  saveProgress(state.startSession - 1);
   prepare();
 });
 
@@ -347,9 +401,16 @@ window.addEventListener("beforeunload", (e) => {
 preload(allImages());
 
 if (AUTO) {
-  state.pid = params.get("pid") || "auto";
-  state.group = Number(params.get("group") || 1);
-  state.startSession = Number(params.get("start") || 1);
-  state.demo = { gender: "тест", age: 0, lang: "тест", hand: "тест" };
+  state.pid = params.get("p") || "auto";
+  state.group = groupFor(state.pid) || 1;
+  state.startSession = Number(params.get("s") || 1);
+  state.demo = { age: 0, sex: "тест", native_ru: "тест" };
   prepare().then((failed) => { if (!failed.length) run(); });
+} else {
+  const pid = (params.get("p") || "").trim();
+  if (/^[A-Za-z0-9_-]+$/.test(pid) && groupFor(pid)) begin(pid);
+  else {
+    if (pid) $("setup-error").textContent = "В ссылке неверный номер участника.";
+    show("screen-setup");
+  }
 }
