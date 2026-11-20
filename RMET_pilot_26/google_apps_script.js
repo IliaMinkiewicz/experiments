@@ -1,9 +1,12 @@
-// Приём данных пилота и запись CSV в репозиторий GitHub (по файлу на сессию, без перезаписи).
+// Приём данных пилота и запись CSV в репозиторий GitHub (по файлу на сессию, без перезаписи),
+// а также выдача номеров новым участникам: 1, 2, 3… по порядку.
 //
 // Свойства скрипта (Project Settings → Script properties):
-//   GITHUB_TOKEN  — fine-grained token с доступом Contents: Read and write только к репозиторию с данными;
-//   SHARED_SECRET — та же строка, что CONFIG.secret в script.js.
+//   GITHUB_TOKEN      — fine-grained token с доступом Contents: Read and write только к репозиторию с данными;
+//   SHARED_SECRET     — та же строка, что CONFIG.secret в script.js;
+//   NEXT_PARTICIPANT  — следующий номер участника; создаётся сам (с 1). Удалить свойство — нумерация начнётся заново.
 // Развёртывание: Deploy → New deployment → Web app; Execute as: Me; Who has access: Anyone.
+// После изменения кода: Deploy → Manage deployments → карандаш → Version: New version → Deploy (адрес не меняется).
 // Адрес веб-приложения вставляется в CONFIG.uploadUrl в script.js.
 
 const REPO_OWNER = "IliaMinkiewicz";
@@ -17,6 +20,8 @@ function doPost(e) {
     const props = PropertiesService.getScriptProperties();
     const req = JSON.parse(e.postData.contents);
     if (!req.secret || req.secret !== props.getProperty("SHARED_SECRET")) return reply(false, "forbidden");
+    if (req.action === "new_participant") return newParticipant(props);
+
     const pid = String(req.participantId || "").replace(/[^A-Za-z0-9_-]/g, "");
     const session = String(req.session || "").replace(/\D/g, "");
     if (!pid || !session || !req.csvData) return reply(false, "missing fields");
@@ -45,7 +50,22 @@ function doPost(e) {
   }
 }
 
-function reply(ok, message) {
-  return ContentService.createTextOutput(JSON.stringify({ ok: ok, message: message }))
+// Следующий номер участника. Блокировка нужна, чтобы двое участников, открывших страницу
+// одновременно, не получили один и тот же номер.
+function newParticipant(props) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const pid = Number(props.getProperty("NEXT_PARTICIPANT") || 1);
+    props.setProperty("NEXT_PARTICIPANT", String(pid + 1));
+    return reply(true, "new participant", { pid: pid });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function reply(ok, message, extra) {
+  const body = Object.assign({ ok: ok, message: message }, extra || {});
+  return ContentService.createTextOutput(JSON.stringify(body))
     .setMimeType(ContentService.MimeType.JSON);
 }

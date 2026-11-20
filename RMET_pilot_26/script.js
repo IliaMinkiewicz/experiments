@@ -21,10 +21,12 @@ const IMAGE_PARALLEL = 6;        // одновременных загрузок
 const IMAGE_TRIES = 4;           // попыток на одно изображение
 const IMAGE_TIMEOUT_MS = 120000; // ожидание одной попытки
 
-// Параметры ссылки:
-//   ?p=12   номер участника (по нему вычисляется группа);
-//   ?g=5    группа явно — только для проверок (?p=test&g=5);
+// Обычно все участники получают одну общую ссылку без параметров: номер выдаёт Apps Script
+// после согласия и анкеты, браузер его запоминает. Параметры ссылки — для особых случаев:
+//   ?p=12   номер участника вручную (например, участник перешёл на другой компьютер);
 //   ?s=3    начать с сессии 3 — если прогресс в браузере потерян;
+//   ?new=1  забыть участника, сохранённого в этом браузере (новый участник на том же компьютере);
+//   ?g=5    группа явно — только для проверок (?p=test&g=5);
 //   ?auto=1 автопрогон для проверки: ответы случайные, данные никуда не отправляются.
 const params = new URLSearchParams(location.search);
 const AUTO = params.get("auto") === "1";
@@ -185,7 +187,7 @@ async function run() {
 
 // Последний экран: дожидаемся отправки и повторяем неудавшиеся отправки.
 async function finish() {
-  $("end-text").innerHTML = TEXTS.end;
+  $("end-text").innerHTML = TEXTS.end + `<p>${TEXTS.participantNumber(state.pid)}</p>`;
   statusTarget = "end-status";
   show("screen-end");
   renderStatus();
@@ -342,10 +344,42 @@ function planText(group) {
   return `Группа ${group}: листы по сессиям ${plan.map((p) => p.list).join("–")}, первая задача — ${names[plan[0].tasks[0]]}.`;
 }
 
-// Начало работы с участником: новый — согласие и анкета; вернувшийся — сразу к прерванной сессии.
+// Номер участника, сохранённый в этом браузере: по той же общей ссылке участник продолжит с прерванной сессии.
+const PID_KEY = CONFIG.experiment + "_participant";
+function storedPid() {
+  try { return localStorage.getItem(PID_KEY) || ""; } catch (e) { return ""; }
+}
+function rememberPid(pid) {
+  try { localStorage.setItem(PID_KEY, pid); } catch (e) { /* хранилище недоступно */ }
+  history.replaceState(null, "", "?p=" + pid); // при перезагрузке страницы участник продолжит с того же места
+}
+
+// Новый номер у Apps Script (1, 2, 3… по порядку).
+async function requestNumber() {
+  if (!CONFIG.uploadUrl) throw new Error("адрес Apps Script не задан");
+  const res = await fetch(CONFIG.uploadUrl, {
+    method: "POST",
+    body: JSON.stringify({ action: "new_participant", experiment: CONFIG.experiment, secret: CONFIG.secret }),
+  });
+  const reply = await res.json();
+  if (!reply || !reply.ok || !reply.pid) throw new Error("номер не выдан");
+  return String(reply.pid);
+}
+
+// Номер назначен после анкеты: запоминаем его, сохраняем анкету и переходим к началу.
+function setParticipant(pid) {
+  state.pid = pid;
+  state.group = groupFor(pid);
+  rememberPid(pid);
+  saveProgress(state.startSession - 1);
+  prepare(TEXTS.participantNumber(pid));
+}
+
+// Участник с известным номером: новый — согласие и анкета; вернувшийся — сразу к прерванной сессии.
 function begin(pid) {
   state.pid = pid;
   state.group = groupFor(pid);
+  rememberPid(pid);
   const forced = Number(params.get("s"));
   const hasForced = forced >= 1 && forced <= 4;
   const progress = loadProgress();
@@ -360,7 +394,7 @@ function begin(pid) {
   if (progress && progress.demo) {
     state.demo = progress.demo;
     state.rows = savedRows().filter((r) => r.session < state.startSession);
-    prepare(TEXTS.resume(state.startSession));
+    prepare(TEXTS.resume(state.startSession) + " " + TEXTS.participantNumber(pid));
   } else {
     $("consent-text").innerHTML = TEXTS.consent;
     show("screen-consent");
@@ -393,13 +427,13 @@ $("b-setup").addEventListener("click", () => {
     $("setup-error").textContent = "Введите номер участника: целое число от 1.";
     return;
   }
-  history.replaceState(null, "", "?p=" + pid); // при перезагрузке страницы участник продолжит с того же места
-  begin(pid);
+  if (state.demo.age) setParticipant(pid); // анкета уже заполнена, номер не удалось получить автоматически
+  else begin(pid);
 });
 
 $("b-consent").addEventListener("click", () => show("screen-demo"));
 
-$("b-demo").addEventListener("click", () => {
+$("b-demo").addEventListener("click", async () => {
   const age = Number($("f-age").value);
   const sex = $("f-sex").value;
   const lang = $("f-lang").value;
@@ -410,8 +444,23 @@ $("b-demo").addEventListener("click", () => {
   $("demo-error").textContent = err;
   if (err) return;
   state.demo = { age: age, sex: sex, native_ru: lang };
-  saveProgress(state.startSession - 1);
-  prepare();
+  if (state.pid) { // номер уже известен (ссылка с ?p=)
+    saveProgress(state.startSession - 1);
+    prepare(TEXTS.participantNumber(state.pid));
+    return;
+  }
+  // Новый участник по общей ссылке: номер выдаёт Apps Script; если не вышло — номер вводит экспериментатор.
+  $("b-demo").disabled = true;
+  $("demo-status").textContent = TEXTS.gettingNumber;
+  try {
+    setParticipant(await requestNumber());
+  } catch (e) {
+    $("setup-error").textContent = TEXTS.noNumber;
+    show("screen-setup");
+  } finally {
+    $("b-demo").disabled = false;
+    $("demo-status").textContent = "";
+  }
 });
 
 $("b-retry").addEventListener("click", () => {
@@ -458,10 +507,18 @@ if (AUTO) {
   state.demo = { age: 0, sex: "тест", native_ru: "тест" };
   prepare().then((failed) => { if (!failed.length) run(); });
 } else {
-  const pid = (params.get("p") || "").trim();
-  if (/^[A-Za-z0-9_-]+$/.test(pid) && groupFor(pid)) begin(pid);
-  else {
-    if (pid) $("setup-error").textContent = "В ссылке неверный номер участника.";
+  if (params.get("new") === "1") {
+    try { localStorage.removeItem(PID_KEY); } catch (e) { /* хранилище недоступно */ }
+    history.replaceState(null, "", location.pathname);
+  }
+  const linkPid = (params.get("p") || "").trim();
+  const pid = linkPid || (params.get("new") === "1" ? "" : storedPid());
+  if (/^[A-Za-z0-9_-]+$/.test(pid) && groupFor(pid)) begin(pid); // известный участник
+  else if (linkPid) {
+    $("setup-error").textContent = "В ссылке неверный номер участника.";
     show("screen-setup");
+  } else { // новый участник по общей ссылке
+    $("consent-text").innerHTML = TEXTS.consent;
+    show("screen-consent");
   }
 }

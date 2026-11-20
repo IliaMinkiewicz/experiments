@@ -9,11 +9,11 @@
 <body>
 <!-- Экраны переключает script.js: в каждый момент виден один section. -->
 
-<!-- Экран экспериментатора: номер участника (если страница открыта без ?p=) -->
+<!-- Экран экспериментатора: номер вручную, если его не удалось получить автоматически -->
 <section id="screen-setup" class="screen form-screen" hidden>
   <div class="card">
     <h1>Параметры эксперимента</h1>
-    <p class="muted">Заполняет экспериментатор. Участнику можно сразу отправить ссылку с номером: …/RMET_pilot_26/?p=12</p>
+    <p class="muted">Заполняет экспериментатор.</p>
     <div class="field">
       <label for="f-pid">Номер участника</label>
       <input id="f-pid" type="text" inputmode="numeric" autocomplete="off" spellcheck="false">
@@ -57,6 +57,7 @@
         <option value="нет">нет</option>
       </select>
     </div>
+    <p id="demo-status" class="muted small"></p>
     <p id="demo-error" class="err"></p>
     <button id="b-demo" class="primary">Продолжить</button>
   </div>
