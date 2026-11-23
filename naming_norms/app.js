@@ -334,12 +334,20 @@ function verifyOnServer() {
                  .catch(() => 0);
 }
 
-// порции уходят по одной: одновременные записи в репозиторий конфликтуют
-let queue = Promise.resolve();
+// порции уходят по одной: одновременные записи в репозиторий конфликтуют.
+// Пока порция в пути, новые не ставятся в очередь; после неудачи повтор через chunkSize ответов
+let queue = Promise.resolve(), inFlight = 0, failedAt = 0;
 function flushChunk(isFinal) {
-  queue = queue.then(() => sendChunk(isFinal));
+  if (!isFinal && (inFlight || (failedAt && S.pending.length < failedAt + CONFIG.chunkSize))) return queue;
+  inFlight++;
+  queue = queue.then(() => sendChunk(isFinal)).then(ok => {
+    inFlight--;
+    failedAt = ok ? 0 : S.pending.length;
+    return ok;
+  });
   return queue;
 }
+let MANUAL = "";
 
 // порция остаётся в pending, пока сервер не подтвердит запись
 function sendChunk(isFinal) {
@@ -399,7 +407,7 @@ function finish() {
   const giveUp = () => {
     $("upload-status").textContent = "";
     $("manual-save").classList.remove("hidden");
-    $("manual-data").value = JSON.stringify({ meta: sessionMeta(), rows: S.rows });
+    MANUAL = JSON.stringify({ meta: sessionMeta(), rows: S.rows });
   };
 
   const attempt = () => flushChunk(true).then(ok => {
@@ -408,7 +416,7 @@ function finish() {
       return;
     }
     tries++;
-    if (tries < 4) { setTimeout(attempt, 1500 * tries); return; }
+    if (tries < 3) { setTimeout(attempt, 1500 * tries); return; }
     verifyOnServer().then(chunks => {
       if (chunks >= expected) {
         partSent();
@@ -492,9 +500,14 @@ function wire() {
     if (f && !LOCAL.has(f)) { LOCAL.add(f); $("stim-img").src = f; }
   });
 
-  $("btn-copy").addEventListener("click", () => {
-    $("manual-data").select();
-    try { document.execCommand("copy"); $("btn-copy").textContent = "Скопировано"; } catch (e) {}
+  $("btn-download").addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([MANUAL], { type: "application/json" }));
+    a.download = "naming_" + PID + "_" + CODE + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
   });
 
   window.addEventListener("beforeunload", e => {
