@@ -156,6 +156,7 @@ async function run() {
     if (session.session < state.startSession) continue;
     state.session = session.session;
     state.sessionStarted = new Date().toISOString();
+    if (session.session === 1) await message(TEXTS.overview, TEXTS.continueButton); // общая инструкция
     for (const block of session.blocks) {
       await message(TEXTS[block.task], TEXTS.startButton);
       if (block.practice.length) {
