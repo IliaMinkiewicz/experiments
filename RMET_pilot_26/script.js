@@ -389,7 +389,9 @@ function allImages() {
 
 // ---------- Участник: номер, группа, продолжение ----------
 
-// Группа задаётся номером участника по кругу: 1–8, затем снова 1 (участник 9 — группа 1).
+// Группу новому участнику назначает Apps Script: ту, где меньше всего людей, прошедших все четыре сессии
+// (при равенстве — где меньше назначенных). Если сервер группу не знает (номер введён вручную),
+// группа задаётся номером по кругу: 1–8, затем снова 1 (участник 9 — группа 1).
 function groupFor(pid) {
   const g = Number(params.get("g"));
   if (Number.isInteger(g) && g >= 1 && g <= 8) return g;
@@ -405,40 +407,65 @@ function planText(group) {
 
 // Номер участника, сохранённый в этом браузере: по той же общей ссылке участник продолжит с прерванной сессии.
 const PID_KEY = CONFIG.experiment + "_participant";
+const GROUP_KEY = CONFIG.experiment + "_group";
 function storedPid() {
   try { return localStorage.getItem(PID_KEY) || ""; } catch (e) { return ""; }
 }
-function rememberPid(pid) {
-  try { localStorage.setItem(PID_KEY, pid); } catch (e) { /* хранилище недоступно */ }
+function storedGroup(pid) {
+  try { return pid === storedPid() ? Number(localStorage.getItem(GROUP_KEY)) || 0 : 0; } catch (e) { return 0; }
+}
+function rememberPid(pid, group) {
+  try {
+    localStorage.setItem(PID_KEY, pid);
+    localStorage.setItem(GROUP_KEY, String(group));
+  } catch (e) { /* хранилище недоступно */ }
   history.replaceState(null, "", "?p=" + pid); // при перезагрузке страницы участник продолжит с того же места
 }
 
-// Новый номер у Apps Script (1, 2, 3… по порядку).
-async function requestNumber() {
+// Запрос к Apps Script (действия new_participant и participant_group).
+async function askServer(action, extra) {
   if (!CONFIG.uploadUrl) throw new Error("адрес Apps Script не задан");
   const res = await fetch(CONFIG.uploadUrl, {
     method: "POST",
-    body: JSON.stringify({ action: "new_participant", experiment: CONFIG.experiment, secret: CONFIG.secret }),
+    body: JSON.stringify(Object.assign({ action: action, experiment: CONFIG.experiment, secret: CONFIG.secret }, extra || {})),
   });
   const reply = await res.json();
-  if (!reply || !reply.ok || !reply.pid) throw new Error("номер не выдан");
-  return String(reply.pid);
+  if (!reply || !reply.ok) throw new Error("сервер не ответил");
+  return reply;
+}
+
+// Новый номер (1, 2, 3… по порядку) и группа от Apps Script.
+async function requestNumber() {
+  const reply = await askServer("new_participant");
+  if (!reply.pid) throw new Error("номер не выдан");
+  return { pid: String(reply.pid), group: Number(reply.group) || 0 };
+}
+
+// Группа участника с известным номером: с сервера; если он не отвечает — сохранённая в этом браузере; иначе по номеру.
+async function lookupGroup(pid) {
+  const g = Number(params.get("g"));
+  if (g >= 1 && g <= 8) return g;
+  try {
+    const reply = await askServer("participant_group", { participantId: pid });
+    if (reply.group >= 1 && reply.group <= 8) return Number(reply.group);
+  } catch (e) { /* сервер недоступен */ }
+  return storedGroup(pid) || groupFor(pid);
 }
 
 // Номер назначен после анкеты: запоминаем его, сохраняем анкету и переходим к началу.
-function setParticipant(pid) {
+function setParticipant(pid, group) {
   state.pid = pid;
-  state.group = groupFor(pid);
-  rememberPid(pid);
+  state.group = group >= 1 && group <= 8 ? group : groupFor(pid);
+  rememberPid(pid, state.group);
   saveProgress(state.startSession - 1);
   prepare(TEXTS.participantNumber(pid));
 }
 
 // Участник с известным номером: новый — согласие и анкета; вернувшийся — сразу к прерванной сессии.
-function begin(pid) {
+async function begin(pid) {
   state.pid = pid;
-  state.group = groupFor(pid);
-  rememberPid(pid);
+  state.group = await lookupGroup(pid);
+  rememberPid(pid, state.group);
   const forced = Number(params.get("s"));
   const hasForced = forced >= 1 && forced <= 4;
   const progress = loadProgress();
@@ -512,7 +539,8 @@ $("b-demo").addEventListener("click", async () => {
   $("b-demo").disabled = true;
   $("demo-status").textContent = TEXTS.gettingNumber;
   try {
-    setParticipant(await requestNumber());
+    const assigned = await requestNumber();
+    setParticipant(assigned.pid, assigned.group);
   } catch (e) {
     $("setup-error").textContent = TEXTS.noNumber;
     show("screen-setup");

@@ -6,6 +6,9 @@
 //   GITHUB_TOKEN      — fine-grained token с доступом Contents: Read and write только к репозиторию с данными;
 //   SHARED_SECRET     — та же строка, что CONFIG.secret в script.js;
 //   NEXT_PARTICIPANT  — следующий номер участника; создаётся сам (с 1). Удалить свойство — нумерация начнётся заново.
+//   GROUP_OF, COMPLETED — группа каждого участника и номера тех, кто прошёл все 4 сессии; создаются сами.
+//   Группу новому участнику дают ту, где меньше всего прошедших все сессии (при равенстве — меньше назначенных),
+//   поэтому выбывшие участники не нарушают баланс групп. Чтобы начать набор заново, удалите все три свойства.
 // Развёртывание: Deploy → New deployment → Web app; Execute as: Me; Who has access: Anyone.
 // После изменения кода: Deploy → Manage deployments → карандаш → Version: New version → Deploy (адрес не меняется).
 // Адрес веб-приложения вставляется в CONFIG.uploadUrl в script.js.
@@ -22,6 +25,7 @@ function doPost(e) {
     const req = JSON.parse(e.postData.contents);
     if (!req.secret || req.secret !== props.getProperty("SHARED_SECRET")) return reply(false, "forbidden");
     if (req.action === "new_participant") return newParticipant(props);
+    if (req.action === "participant_group") return participantGroup(props, req.participantId);
 
     const pid = String(req.participantId || "").replace(/[^A-Za-z0-9_-]/g, "");
     const session = String(req.session || "").replace(/\D/g, "");
@@ -60,7 +64,9 @@ function doPost(e) {
         if (code !== 409 && code < 500) break;
         Utilities.sleep(1000 * attempt);
       }
-      return reply(code === 200 || code === 201, "github " + code);
+      const ok = code === 200 || code === 201;
+      if (ok && req.whole === true && session === "4") markCompleted(props, pid); // участник прошёл все сессии
+      return reply(ok, "github " + code);
     } finally {
       lock.releaseLock();
     }
@@ -69,17 +75,48 @@ function doPost(e) {
   }
 }
 
-// Следующий номер участника. Блокировка нужна, чтобы двое участников, открывших страницу
+const GROUPS = 8;
+const readJson = (props, key, empty) => JSON.parse(props.getProperty(key) || empty);
+
+// Следующий номер участника и его группа. Блокировка нужна, чтобы двое участников, открывших страницу
 // одновременно, не получили один и тот же номер.
 function newParticipant(props) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const pid = Number(props.getProperty("NEXT_PARTICIPANT") || 1);
-    props.setProperty("NEXT_PARTICIPANT", String(pid + 1));
-    return reply(true, "new participant", { pid: pid });
+    const groupOf = readJson(props, "GROUP_OF", "{}");
+    const completed = readJson(props, "COMPLETED", "[]");
+    const done = new Array(GROUPS + 1).fill(0);
+    const assigned = new Array(GROUPS + 1).fill(0);
+    Object.keys(groupOf).forEach((p) => {
+      assigned[groupOf[p]]++;
+      if (completed.indexOf(p) >= 0) done[groupOf[p]]++;
+    });
+    let group = 1;
+    for (let g = 2; g <= GROUPS; g++) {
+      if (done[g] < done[group] || (done[g] === done[group] && assigned[g] < assigned[group])) group = g;
+    }
+    groupOf[String(pid)] = group;
+    props.setProperties({ NEXT_PARTICIPANT: String(pid + 1), GROUP_OF: JSON.stringify(groupOf) });
+    return reply(true, "new participant", { pid: pid, group: group });
   } finally {
     lock.releaseLock();
+  }
+}
+
+// Группа уже назначенного участника (например, если он открыл ссылку на другом компьютере); 0 — неизвестна.
+function participantGroup(props, participantId) {
+  const groupOf = readJson(props, "GROUP_OF", "{}");
+  return reply(true, "participant group", { group: groupOf[String(participantId)] || 0 });
+}
+
+// Отметка «прошёл все четыре сессии» (вызывается внутри блокировки записи).
+function markCompleted(props, pid) {
+  const completed = readJson(props, "COMPLETED", "[]");
+  if (completed.indexOf(pid) < 0) {
+    completed.push(pid);
+    props.setProperty("COMPLETED", JSON.stringify(completed));
   }
 }
 
