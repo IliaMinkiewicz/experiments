@@ -40,9 +40,18 @@ function randCode(n) {
 const params  = new URLSearchParams(location.search);
 const WORKER  = (params.get("w") || params.get("worker") || "").slice(0, 64);
 
-// pid, код и сид сохраняются при перезагрузке
-const SESS_KEY = "naming_session_" + (WORKER || "anon");
-const SESSION  = (function () {
+// pid, код и сид сохраняются при перезагрузке; если уже есть запись о частях, берутся из неё
+const SESS_KEY  = "naming_session_" + (WORKER || "anon");
+const PARTS_KEY = "naming_parts_" + (WORKER || "anon");
+const SESSION   = (function () {
+  try {
+    const p = JSON.parse(localStorage.getItem(PARTS_KEY) || "null");
+    if (p && p.pid && p.code && p.seed) {
+      const s = { pid: p.pid, code: p.code, seed: p.seed };
+      try { localStorage.setItem(SESS_KEY, JSON.stringify(s)); } catch (e) {}
+      return s;
+    }
+  } catch (e) {}
   try {
     const saved = JSON.parse(localStorage.getItem(SESS_KEY) || "null");
     if (saved && saved.pid && saved.code && saved.seed) return saved;
@@ -61,7 +70,6 @@ const SEED = SESSION.seed;
 // список назначается на старте; ?list=1..3 для проверки
 const LIST_PARAM = (params.get("list") || "auto").toLowerCase();
 const AUTO       = LIST_PARAM === "auto";
-const PARTS_KEY  = "naming_parts_" + (WORKER || "anon");
 const PARTS      = (function () {
   try {
     const saved = JSON.parse(localStorage.getItem(PARTS_KEY) || "null");
@@ -69,7 +77,10 @@ const PARTS      = (function () {
   } catch (e) {}
   return { done: [], cur: 0, next: false, demo: null };
 })();
-const saveParts  = () => { try { localStorage.setItem(PARTS_KEY, JSON.stringify(PARTS)); } catch (e) {} };
+const saveParts  = () => {
+  PARTS.pid = PID; PARTS.code = SESSION.code; PARTS.seed = SEED;
+  try { localStorage.setItem(PARTS_KEY, JSON.stringify(PARTS)); } catch (e) {}
+};
 const PART       = AUTO ? PARTS.done.length + 1 : 1;
 // у каждой части свой код
 const CODE       = PART === 1 ? SESSION.code : SESSION.code + "-P" + PART;
